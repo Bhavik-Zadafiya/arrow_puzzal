@@ -1,0 +1,48 @@
+name: arrow_pussal
+description: "Arrow Pussal — a calm puzzle escape."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # State management
+  flutter_bloc: ^9.1.1
+
+  # Routing
+  go_router: ^15.1.2
+
+  # Typography
+  google_fonts: ^6.2.1
+
+  # Icons (free package on pub.dev)
+  iconsax_flutter: ^1.0.0
+
+  # Animations
+  flutter_animate: ^4.5.2
+
+  # google_mobile_ads — add back when App ID is ready (crashes on start without one)
+
+  # Local persistence — dependency only, no boxes set up yet
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/audio/
