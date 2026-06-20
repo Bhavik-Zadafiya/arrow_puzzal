@@ -33,6 +33,7 @@ dependencies:
   # Local persistence — dependency only, no boxes set up yet
   hive: ^2.2.3
   hive_flutter: ^1.1.0
+  audioplayers: ^6.7.1
 
 dev_dependencies:
   flutter_test:

@@ -5,8 +5,7 @@ enum GamePhase { playing, failed, levelComplete }
 class GamePiece {
   const GamePiece({
     required this.id,
-    required this.row,
-    required this.col,
+    required this.cells,
     required this.direction,
     this.isExiting = false,
     this.hasExited = false,
@@ -14,8 +13,7 @@ class GamePiece {
   });
 
   final String id;
-  final int row;
-  final int col;
+  final List<GridPos> cells;
   final Direction direction;
   final bool isExiting;
   final bool hasExited;
@@ -30,8 +28,7 @@ class GamePiece {
   }) =>
       GamePiece(
         id: id,
-        row: row,
-        col: col,
+        cells: cells,
         direction: direction,
         isExiting: isExiting ?? this.isExiting,
         hasExited: hasExited ?? this.hasExited,
@@ -59,13 +56,10 @@ class GameplayState {
   static GameplayState fromLevel(LevelDefinition level) => GameplayState(
         level: level,
         pieces: level.pieces
-            .asMap()
-            .entries
-            .map((e) => GamePiece(
-                  id: 'p${e.key}',
-                  row: e.value.row,
-                  col: e.value.col,
-                  direction: e.value.direction,
+            .map((p) => GamePiece(
+                  id: p.id,
+                  cells: p.cells,
+                  direction: p.direction,
                 ))
             .toList(),
         mistakes: 0,
@@ -87,30 +81,41 @@ class GameplayState {
         mockLifelines: mockLifelines ?? this.mockLifelines,
       );
 
-  GamePiece? pieceAt(int row, int col) {
+  GamePiece? pieceAt(int row, int col, {bool includeExiting = false}) {
     for (final p in pieces) {
-      if (p.isActive && p.row == row && p.col == col) return p;
+      final matches = includeExiting ? !p.hasExited : p.isActive;
+      if (matches) {
+        for (final cell in p.cells) {
+          if (cell.row == row && cell.col == col) return p;
+        }
+      }
     }
     return null;
   }
 
   bool isPathClear(GamePiece piece) {
+    if (piece.cells.isEmpty) return true;
+    final head = piece.cells.last;
     switch (piece.direction) {
       case Direction.right:
-        for (int c = piece.col + 1; c < level.cols; c++) {
-          if (pieceAt(piece.row, c) != null) return false;
+        for (int c = head.col + 1; c < level.cols; c++) {
+          final other = pieceAt(head.row, c, includeExiting: true);
+          if (other != null && other.id != piece.id) return false;
         }
       case Direction.left:
-        for (int c = piece.col - 1; c >= 0; c--) {
-          if (pieceAt(piece.row, c) != null) return false;
+        for (int c = head.col - 1; c >= 0; c--) {
+          final other = pieceAt(head.row, c, includeExiting: true);
+          if (other != null && other.id != piece.id) return false;
         }
       case Direction.up:
-        for (int r = piece.row - 1; r >= 0; r--) {
-          if (pieceAt(r, piece.col) != null) return false;
+        for (int r = head.row - 1; r >= 0; r--) {
+          final other = pieceAt(r, head.col, includeExiting: true);
+          if (other != null && other.id != piece.id) return false;
         }
       case Direction.down:
-        for (int r = piece.row + 1; r < level.rows; r++) {
-          if (pieceAt(r, piece.col) != null) return false;
+        for (int r = head.row + 1; r < level.rows; r++) {
+          final other = pieceAt(r, head.col, includeExiting: true);
+          if (other != null && other.id != piece.id) return false;
         }
     }
     return true;

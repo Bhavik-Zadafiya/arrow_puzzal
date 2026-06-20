@@ -1,9 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/constants/app_colors.dart';
+import '../data/level_definition.dart';
 import '../provider/gameplay_cubit.dart';
 import '../provider/gameplay_state.dart';
 import 'piece_widget.dart';
+
+double _pixelsToEdge(GamePiece piece, int rows, int cols, double cellSize) {
+  if (piece.cells.isEmpty) return 0.0;
+  final head = piece.cells.last;
+  return switch (piece.direction) {
+    Direction.right => (cols - 1 - head.col) * cellSize,
+    Direction.left  => head.col * cellSize,
+    Direction.up    => head.row * cellSize,
+    Direction.down  => (rows - 1 - head.row) * cellSize,
+  };
+}
 
 class GameGrid extends StatelessWidget {
   const GameGrid({super.key});
@@ -13,7 +25,7 @@ class GameGrid extends StatelessWidget {
     return BlocBuilder<GameplayCubit, GameplayState>(
       builder: (context, state) {
         return LayoutBuilder(builder: (context, constraints) {
-          // Fill available space while keeping the grid square (for 5×5).
+          // Fill available space while keeping the grid square.
           final shorter =
               constraints.maxWidth < constraints.maxHeight
                   ? constraints.maxWidth
@@ -26,36 +38,59 @@ class GameGrid extends StatelessWidget {
             child: SizedBox(
               width: gridW,
               height: gridH,
-              child: Stack(
-                // pieces animate out of bounds — allow overflow
-                clipBehavior: Clip.none,
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _GridPainter(
-                        rows: state.level.rows,
-                        cols: state.level.cols,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapDown: (details) {
+                  final x = details.localPosition.dx;
+                  final y = details.localPosition.dy;
+                  final col = (x / cellSize).floor().clamp(0, state.level.cols - 1);
+                  final row = (y / cellSize).floor().clamp(0, state.level.rows - 1);
+
+                  final piece = state.pieceAt(row, col);
+                  if (piece != null) {
+                    context.read<GameplayCubit>().tapPiece(piece.id);
+                  }
+                },
+                child: Stack(
+                  // pieces animate out of bounds — allow overflow
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _GridPainter(
+                          rows: state.level.rows,
+                          cols: state.level.cols,
+                        ),
                       ),
                     ),
-                  ),
-                  ...state.pieces.where((p) => !p.hasExited).map((piece) {
-                    return Positioned(
-                      left: piece.col * cellSize,
-                      top: piece.row * cellSize,
-                      width: cellSize,
-                      height: cellSize,
-                      child: PieceWidget(
+                    ...state.pieces.where((p) => !p.hasExited).map((piece) {
+                      return Positioned(
                         key: ValueKey(piece.id),
-                        piece: piece,
-                        cellSize: cellSize,
-                        onTap: () =>
-                            context.read<GameplayCubit>().tapPiece(piece.id),
-                        onExitComplete: () =>
-                            context.read<GameplayCubit>().pieceExited(piece.id),
-                      ),
-                    );
-                  }),
-                ],
+                        left: 0,
+                        top: 0,
+                        width: gridW,
+                        height: gridH,
+                        child: IgnorePointer(
+                          child: PieceWidget(
+                            piece: piece,
+                            cellSize: cellSize,
+                            gridWidth: gridW,
+                            gridHeight: gridH,
+                            pixelsToEdge: _pixelsToEdge(
+                              piece,
+                              state.level.rows,
+                              state.level.cols,
+                              cellSize,
+                            ),
+                            onTap: () {},
+                            onExitComplete: () =>
+                                context.read<GameplayCubit>().pieceExited(piece.id),
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
               ),
             ),
           );

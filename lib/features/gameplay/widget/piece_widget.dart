@@ -1,20 +1,27 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../data/level_definition.dart';
 import '../provider/gameplay_state.dart';
 import 'piece_painter.dart';
 
+/// Exit animation: the stroke drains from tail → through every bend → out the tip,
+/// like water flowing through a curved pipe. Duration controlled by [_exitDuration].
 class PieceWidget extends StatefulWidget {
   const PieceWidget({
     super.key,
     required this.piece,
     required this.cellSize,
+    required this.gridWidth,
+    required this.gridHeight,
+    required this.pixelsToEdge,
     required this.onTap,
     required this.onExitComplete,
   });
 
   final GamePiece piece;
   final double cellSize;
+  final double gridWidth;
+  final double gridHeight;
+  final double pixelsToEdge;
   final VoidCallback onTap;
   final VoidCallback onExitComplete;
 
@@ -24,6 +31,8 @@ class PieceWidget extends StatefulWidget {
 
 class _PieceWidgetState extends State<PieceWidget>
     with TickerProviderStateMixin {
+  static const _exitDuration = Duration(milliseconds: 500);
+
   late final AnimationController _exitCtrl;
   late final AnimationController _shakeCtrl;
   bool _showError = false;
@@ -32,27 +41,23 @@ class _PieceWidgetState extends State<PieceWidget>
   void initState() {
     super.initState();
 
-    _exitCtrl = AnimationController(
-      duration: const Duration(milliseconds: 380),
-      vsync: this,
-    );
-    _exitCtrl.addStatusListener((s) {
-      if (s == AnimationStatus.completed) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) widget.onExitComplete();
-        });
-      }
-    });
+    _exitCtrl = AnimationController(duration: _exitDuration, vsync: this)
+      ..addStatusListener((s) {
+        if (s == AnimationStatus.completed) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) widget.onExitComplete();
+          });
+        }
+      });
 
     _shakeCtrl = AnimationController(
       duration: const Duration(milliseconds: 380),
       vsync: this,
-    );
-    _shakeCtrl.addStatusListener((s) {
-      if (s == AnimationStatus.completed && mounted) {
-        setState(() => _showError = false);
-      }
-    });
+    )..addStatusListener((s) {
+        if (s == AnimationStatus.completed && mounted) {
+          setState(() => _showError = false);
+        }
+      });
   }
 
   @override
@@ -74,35 +79,28 @@ class _PieceWidgetState extends State<PieceWidget>
     super.dispose();
   }
 
-  Offset _exitOffset(double t) {
-    final dist = widget.cellSize * 7 * Curves.easeIn.transform(t);
-    return switch (widget.piece.direction) {
-      Direction.right => Offset(dist, 0),
-      Direction.left  => Offset(-dist, 0),
-      Direction.up    => Offset(0, -dist),
-      Direction.down  => Offset(0, dist),
-    };
-  }
-
   double _shakeX(double t) =>
       math.sin(t * math.pi * 4) * widget.cellSize * 0.09;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: widget.onTap,
-      child: AnimatedBuilder(
-        animation: Listenable.merge([_exitCtrl, _shakeCtrl]),
-        builder: (_, child) => Transform.translate(
-          offset: _exitOffset(_exitCtrl.value) +
-              Offset(_shakeX(_shakeCtrl.value), 0),
-          child: child,
-        ),
-        child: CustomPaint(
-          size: Size(widget.cellSize, widget.cellSize),
-          painter: PiecePainter(
-            direction: widget.piece.direction,
-            isError: _showError,
+    return AnimatedBuilder(
+      animation: Listenable.merge([_exitCtrl, _shakeCtrl]),
+      builder: (_, __) => Transform.translate(
+        offset: Offset(_shakeX(_shakeCtrl.value), 0),
+        child: SizedBox(
+          width: widget.gridWidth,
+          height: widget.gridHeight,
+          child: CustomPaint(
+            size: Size(widget.gridWidth, widget.gridHeight),
+            painter: PiecePainter(
+              cells: widget.piece.cells,
+              direction: widget.piece.direction,
+              isError: _showError,
+              cellSize: widget.cellSize,
+              drainT: _exitCtrl.value,
+              pixelsToEdge: widget.pixelsToEdge,
+            ),
           ),
         ),
       ),
