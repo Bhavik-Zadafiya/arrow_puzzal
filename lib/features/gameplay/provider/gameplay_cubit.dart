@@ -14,16 +14,19 @@ class GameplayCubit extends Cubit<GameplayState> {
     );
     if (!piece.isActive) return;
 
+    // Clear any active hint when the player taps anything.
+    final cleared = _clearAllHints(state.pieces);
+
     if (state.isPathClear(piece)) {
       emit(state.copyWith(
-        pieces: state.pieces
+        pieces: cleared
             .map((p) => p.id == pieceId ? p.copyWith(isExiting: true) : p)
             .toList(),
       ));
     } else {
       final newMistakes = state.mistakes + 1;
       emit(state.copyWith(
-        pieces: state.pieces
+        pieces: cleared
             .map((p) =>
                 p.id == pieceId ? p.copyWith(shakeCount: p.shakeCount + 1) : p)
             .toList(),
@@ -49,6 +52,32 @@ class GameplayCubit extends Cubit<GameplayState> {
           : state.phase,
     ));
   }
+
+  // Highlights the first active piece whose path is currently clear.
+  // Returns true if a hint was found, false if no moves are possible.
+  bool requestHint() {
+    if (state.phase != GamePhase.playing) return false;
+
+    final free = state.pieces
+        .where((p) => p.isActive && state.isPathClear(p))
+        .toList();
+    if (free.isEmpty) return false;
+
+    final hintId = free.first.id;
+    emit(state.copyWith(
+      pieces: state.pieces
+          .map((p) => p.copyWith(isHinted: p.id == hintId))
+          .toList(),
+    ));
+    return true;
+  }
+
+  void clearHint() {
+    emit(state.copyWith(pieces: _clearAllHints(state.pieces)));
+  }
+
+  List<GamePiece> _clearAllHints(List<GamePiece> pieces) =>
+      pieces.map((p) => p.isHinted ? p.copyWith(isHinted: false) : p).toList();
 
   // Stub — wire real AdMob rewarded ad when App ID is ready
   void watchAd() =>

@@ -10,6 +10,7 @@ class GamePiece {
     this.isExiting = false,
     this.hasExited = false,
     this.shakeCount = 0,
+    this.isHinted = false,
   });
 
   final String id;
@@ -17,7 +18,8 @@ class GamePiece {
   final Direction direction;
   final bool isExiting;
   final bool hasExited;
-  final int shakeCount; // incremented each time a blocked-move is made on this piece
+  final int shakeCount;
+  final bool isHinted;
 
   bool get isActive => !isExiting && !hasExited;
 
@@ -25,6 +27,7 @@ class GamePiece {
     bool? isExiting,
     bool? hasExited,
     int? shakeCount,
+    bool? isHinted,
   }) =>
       GamePiece(
         id: id,
@@ -33,6 +36,7 @@ class GamePiece {
         isExiting: isExiting ?? this.isExiting,
         hasExited: hasExited ?? this.hasExited,
         shakeCount: shakeCount ?? this.shakeCount,
+        isHinted: isHinted ?? this.isHinted,
       );
 }
 
@@ -49,7 +53,7 @@ class GameplayState {
   final List<GamePiece> pieces;
   final int mistakes;
   final GamePhase phase;
-  final int mockLifelines; // stub — wire to LevelMapCubit / persistence later
+  final int mockLifelines;
 
   static const int maxMistakes = 3;
 

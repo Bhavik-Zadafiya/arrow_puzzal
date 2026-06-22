@@ -59,6 +59,24 @@ class _GameplayView extends StatelessWidget {
                     mistakes: state.mistakes,
                     maxMistakes: GameplayState.maxMistakes,
                     onClose: () => context.go('/level-map'),
+                    onHint: () {
+                      final cubit = context.read<GameplayCubit>();
+                      if (state.pieces.any((p) => p.isHinted)) {
+                        cubit.clearHint();
+                        return;
+                      }
+                      final found = cubit.requestHint();
+                      if (!found) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('No moves available right now!'),
+                            duration: Duration(seconds: 2),
+                            backgroundColor: Color(0xFF7B3F00),
+                          ),
+                        );
+                      }
+                    },
+                    isHintActive: state.pieces.any((p) => p.isHinted),
                   ),
                   const Expanded(child: GameGrid()),
                   const SizedBox(height: 32),

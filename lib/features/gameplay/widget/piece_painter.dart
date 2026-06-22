@@ -3,19 +3,19 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../data/level_definition.dart';
 
-/// [drainT] = 0 → full piece visible (resting).
-/// [drainT] = 1 → piece fully off canvas.
+/// Paints one piece as a connected bent corridor plus a solid filled
+/// arrowhead at the exit end.
 ///
-/// Animation: a fixed-length window slides forward along:
-///   bent corridor (inside cell)  +  straight extension (off canvas in exit dir)
+/// The path body ends at the HEAD CELL CENTRE so the arrowhead (tip at the
+/// cell boundary) visually "sticks out" like  ━━━► rather than ━━━►(buried).
 ///
-/// The tail disappears first, the head exits last through every bend —
-/// like a snake sliding out through its own curved body.
+/// [drainT] = 0 → full piece; 1 → fully off canvas (exit animation).
 class PiecePainter extends CustomPainter {
   const PiecePainter({
     required this.cells,
     required this.direction,
     required this.isError,
+    required this.isHinted,
     required this.cellSize,
     this.drainT = 0.0,
     this.pixelsToEdge = 0.0,
@@ -24,20 +24,23 @@ class PiecePainter extends CustomPainter {
   final List<GridPos> cells;
   final Direction direction;
   final bool isError;
+  final bool isHinted;
   final double cellSize;
   final double drainT;
-  /// Distance in pixels from this cell's exit edge to the grid boundary.
-  /// Used so far-away pieces travel the full distance out of the canvas.
   final double pixelsToEdge;
 
-  Color get _color => isError ? AppColors.pieceLeft : Colors.white;
+  Color get _color {
+    if (isError) return AppColors.pieceLeft;
+    if (isHinted) return const Color(0xFFFFD700); // gold-yellow hint
+    return Colors.white;
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
-    final sw    = math.max(4.0, cellSize * 0.22);
-    final cr    = 0.0;
+    final sw    = (cellSize * 0.28).clamp(2.5, 5.0);
     final color = _color;
     final pts   = _waypoints(cells, direction, cellSize);
+    if (pts.length < 2) return;
 
     final paint = Paint()
       ..color = color
@@ -47,70 +50,73 @@ class PiecePainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.round;
 
     if (drainT <= 0.0) {
-      // Resting — draw full bent path + chevron.
-      canvas.drawPath(_buildBentPath(pts, cr), paint);
-      _drawChevron(canvas, pts.last, pts[pts.length - 2], sw, cellSize, color);
+      // Resting: body up to head-cell centre + arrowhead tip at cell edge.
+      canvas.drawPath(_buildBodyPath(pts), paint);
+      _drawArrowHead(canvas, pts.last, pts[pts.length - 2], cellSize, color);
       return;
     }
 
-    if (drainT >= 1.0) return; // fully off canvas — draw nothing.
+    if (drainT >= 1.0) return;
 
-    // Arc-length of the bent corridor (window size stays constant).
-    final bentLen = _arcLength(_buildBentPath(pts, cr));
+    // ── Exit animation ──────────────────────────────────────────────────────
+    // Arc-length of the full body (tail → head cell centre).
+    final bodyLen = _arcLength(_buildBodyPath(pts));
 
-    // Total travel = piece length + distance to grid edge + a full piece-length
-    // buffer so the tail also clears the grid boundary.
-    final travel = bentLen + pixelsToEdge + bentLen;
+    // Total travel: body + exit gap + a full body-length buffer.
+    final travel = bodyLen + pixelsToEdge + bodyLen;
 
-    // Build the combined path with enough extension to cover the full travel.
-    final extended = _buildExtendedPath(pts, cr, travel + bentLen);
+    // Extended path: body + straight extension out the exit side.
+    final extended = _buildExtendedPath(pts, travel + bodyLen);
     final metric   = extended.computeMetrics().first;
     final total    = metric.length;
 
-    // Slide the fixed-length window [start, start+bentLen] along the path.
-    // At drainT=0 → window at [0, bentLen]    (full piece, nothing exits).
-    // At drainT=1 → window at [travel, travel+bentLen]  (fully off canvas).
     final start = drainT * travel;
-    final end   = (start + bentLen).clamp(0.0, total);
+    final end   = (start + bodyLen).clamp(0.0, total);
 
     if (end > start) {
       canvas.drawPath(metric.extractPath(start, end), paint);
     }
 
-    // Hide chevron the instant the piece starts moving.
+    // Arrowhead fades out at the very start of the animation.
     if (drainT < 0.08) {
-      _drawChevron(
-        canvas, pts.last, pts[pts.length - 2], sw, cellSize,
+      _drawArrowHead(
+        canvas, pts.last, pts[pts.length - 2], cellSize,
         color.withValues(alpha: 1.0 - drainT / 0.08),
       );
     }
   }
 
-  // ── path builders ───────────────────────────────────────────────────────────
+  // ── Path builders ──────────────────────────────────────────────────────────
 
-  /// Bent corridor only (resting shape).
-  Path _buildBentPath(List<Offset> pts, double cr) {
+  /// Bent corridor from tail → head cell CENTRE (pts[last-1]).
+  /// The edge waypoint (pts.last) is NOT included so the arrowhead protrudes.
+  Path _buildBodyPath(List<Offset> pts) {
+    // pts: [...body cells..., headCellCentre, edgePoint]
+    // Body ends at pts[pts.length - 2] = headCellCentre.
     final p = Path()..moveTo(pts.first.dx, pts.first.dy);
-    for (int i = 1; i < pts.length - 1; i++) {
-      _addRoundedCorner(p, pts[i - 1], pts[i], pts[i + 1], cr);
+    final bodyEnd = pts.length - 2; // index of head cell centre
+
+    for (int i = 1; i < bodyEnd; i++) {
+      _addRoundedCorner(p, pts[i - 1], pts[i], pts[i + 1]);
     }
-    p.lineTo(pts.last.dx, pts.last.dy);
+    p.lineTo(pts[bodyEnd].dx, pts[bodyEnd].dy);
     return p;
   }
 
-  /// Bent corridor + straight extension of [exitLen] px in the exit direction.
-  Path _buildExtendedPath(List<Offset> pts, double cr, double exitLen) {
-    final p = _buildBentPath(pts, cr);
+  /// Body + straight extension past the edge for the drain animation.
+  Path _buildExtendedPath(List<Offset> pts, double exitLen) {
+    final p = _buildBodyPath(pts); // ends at head cell centre
 
-    final tip  = pts.last;
-    final prev = pts[pts.length - 2];
-    final dx   = tip.dx - prev.dx;
-    final dy   = tip.dy - prev.dy;
+    // Continue from head-cell centre through the edge and beyond.
+    final centre = pts[pts.length - 2];
+    final edge   = pts.last;
+    final dx = edge.dx - centre.dx;
+    final dy = edge.dy - centre.dy;
     final dist = math.sqrt(dx * dx + dy * dy);
     if (dist > 0) {
       p.lineTo(
-        tip.dx + dx / dist * exitLen,
-        tip.dy + dy / dist * exitLen,
+        centre.dx + dx / dist * (dist + exitLen),
+        centre.dy + dy / dist * (dist + exitLen),
       );
     }
     return p;
@@ -119,69 +125,91 @@ class PiecePainter extends CustomPainter {
   static double _arcLength(Path path) =>
       path.computeMetrics().fold(0.0, (sum, m) => sum + m.length);
 
-  // ── waypoints ───────────────────────────────────────────────────────────────
+  // ── Waypoints ──────────────────────────────────────────────────────────────
 
-  List<Offset> _waypoints(List<GridPos> cells, Direction direction, double cellSize) {
+  List<Offset> _waypoints(
+      List<GridPos> cells, Direction direction, double cellSize) {
     final pts = <Offset>[];
     for (final cell in cells) {
-      final cx = (cell.col + 0.5) * cellSize;
-      final cy = (cell.row + 0.5) * cellSize;
-      pts.add(Offset(cx, cy));
+      pts.add(Offset((cell.col + 0.5) * cellSize, (cell.row + 0.5) * cellSize));
     }
-
     if (pts.isNotEmpty) {
       final head = cells.last;
-      final hx = (head.col + 0.5) * cellSize;
-      final hy = (head.row + 0.5) * cellSize;
+      final hx   = (head.col + 0.5) * cellSize;
+      final hy   = (head.row + 0.5) * cellSize;
       final half = cellSize * 0.5;
-
-      final edge = switch (direction) {
+      pts.add(switch (direction) {
         Direction.right => Offset(hx + half, hy),
         Direction.left  => Offset(hx - half, hy),
         Direction.up    => Offset(hx, hy - half),
         Direction.down  => Offset(hx, hy + half),
-      };
-      pts.add(edge);
+      });
     }
     return pts;
   }
 
-  void _addRoundedCorner(Path path, Offset a, Offset b, Offset c, double r) {
+  // ── Corner rounding ────────────────────────────────────────────────────────
+
+  void _addRoundedCorner(Path path, Offset a, Offset b, Offset c) {
+    const r = 0.0; // sharp corners — set > 0 for rounded bends
     final abDist = (b - a).distance;
     final bcDist = (c - b).distance;
     if (abDist == 0 || bcDist == 0) return;
+    if (r < 0.5) {
+      path.lineTo(b.dx, b.dy);
+      return;
+    }
     final cr = r.clamp(0.0, math.min(abDist / 2, bcDist / 2));
-    if (cr < 0.5) { path.lineTo(b.dx, b.dy); return; }
-    path.lineTo((b + (a - b) * (cr / abDist)).dx, (b + (a - b) * (cr / abDist)).dy);
+    final p1 = b + (a - b) * (cr / abDist);
     final p2 = b + (c - b) * (cr / bcDist);
+    path.lineTo(p1.dx, p1.dy);
     path.quadraticBezierTo(b.dx, b.dy, p2.dx, p2.dy);
   }
 
-  void _drawChevron(
-      Canvas canvas, Offset tip, Offset prev, double sw, double cellSize, Color color) {
+  // ── Arrowhead ──────────────────────────────────────────────────────────────
+
+  /// Solid filled triangle. Tip at [tip] (cell edge), base centred on [prev]
+  /// (head cell centre) — so the arrowhead visually protrudes past the body.
+  void _drawArrowHead(
+      Canvas canvas, Offset tip, Offset prev, double cellSize, Color color) {
     final dx = tip.dx - prev.dx, dy = tip.dy - prev.dy;
     final d = math.sqrt(dx * dx + dy * dy);
     if (d == 0) return;
-    final a  = math.atan2(dy, dx);
-    final al = cellSize * 0.42;
-    const sp = math.pi * 0.32;
-    final paint = Paint()
+
+    final ux = dx / d, uy = dy / d; // unit forward
+    final px = -uy, py =  ux;       // unit perpendicular
+
+    // Arrowhead spans the full half-cell (centre → edge).
+    final len = d;                    // = cellSize * 0.5
+    final wid = cellSize * 0.36;     // half-width of base
+
+    // Base is at [prev] (head cell centre).
+    final bx = tip.dx - ux * len;
+    final by = tip.dy - uy * len;
+
+    final path = Path()
+      ..moveTo(tip.dx, tip.dy)
+      ..lineTo(bx + px * wid, by + py * wid)
+      ..lineTo(bx - px * wid, by - py * wid)
+      ..close();
+
+    // Filled body.
+    canvas.drawPath(path, Paint()
       ..color = color
+      ..style = PaintingStyle.fill);
+
+    // Thin stroke outline so it reads clearly on any background.
+    canvas.drawPath(path, Paint()
+      ..color = color.withValues(alpha: 0.55)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = sw * 0.7
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(tip,
-        Offset(tip.dx + al * math.cos(a + math.pi - sp),
-               tip.dy + al * math.sin(a + math.pi - sp)), paint);
-    canvas.drawLine(tip,
-        Offset(tip.dx + al * math.cos(a + math.pi + sp),
-               tip.dy + al * math.sin(a + math.pi + sp)), paint);
+      ..strokeWidth = 0.8);
   }
 
   @override
   bool shouldRepaint(PiecePainter old) =>
       old.direction != direction ||
       old.isError != isError ||
+      old.isHinted != isHinted ||
       old.drainT != drainT ||
       old.pixelsToEdge != pixelsToEdge ||
       old.cellSize != cellSize ||

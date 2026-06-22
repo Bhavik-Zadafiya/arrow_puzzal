@@ -117,18 +117,19 @@ class _GridPainter extends CustomPainter {
     // Background
     canvas.drawRRect(rr, Paint()..color = AppColors.boardSurface);
 
-    // Inner cell lines
-    final linePaint = Paint()
-      ..color = AppColors.textWarm.withValues(alpha: 0.07)
-      ..strokeWidth = 1;
-
-    for (int r = 1; r < rows; r++) {
-      canvas.drawLine(
-          Offset(0, r * cellH), Offset(size.width, r * cellH), linePaint);
-    }
-    for (int c = 1; c < cols; c++) {
-      canvas.drawLine(
-          Offset(c * cellW, 0), Offset(c * cellW, size.height), linePaint);
+    // 2500 small dots — one per cell centre
+    final dotPaint = Paint()
+      ..color = AppColors.textWarm.withValues(alpha: 0.18)
+      ..style = PaintingStyle.fill;
+    const dotR = 1.4;
+    for (int r = 0; r < rows; r++) {
+      for (int c = 0; c < cols; c++) {
+        canvas.drawCircle(
+          Offset((c + 0.5) * cellW, (r + 0.5) * cellH),
+          dotR,
+          dotPaint,
+        );
+      }
     }
 
     // Border glow
