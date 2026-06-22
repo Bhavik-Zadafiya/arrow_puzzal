@@ -37,10 +37,17 @@ class LevelDefinition {
     required this.rows,
     required this.cols,
     required this.pieces,
+    this.shapeCells, // null = full rectangular grid
   });
   final String id;
   final int rows;
   final int cols;
   final List<PieceDefinition> pieces;
+
+  /// Set of 'row,col' keys that make up the active shape.
+  /// Null means the full grid is used.
+  final Set<String>? shapeCells;
+
+  int get expectedCells => shapeCells?.length ?? rows * cols;
 }
 

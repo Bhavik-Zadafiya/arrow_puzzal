@@ -100,25 +100,27 @@ class GameplayState {
   bool isPathClear(GamePiece piece) {
     if (piece.cells.isEmpty) return true;
     final head = piece.cells.last;
+    // Pieces that are currently animating out are treated as already gone —
+    // they must not block valid taps or waste lifelines.
     switch (piece.direction) {
       case Direction.right:
         for (int c = head.col + 1; c < level.cols; c++) {
-          final other = pieceAt(head.row, c, includeExiting: true);
+          final other = pieceAt(head.row, c);
           if (other != null && other.id != piece.id) return false;
         }
       case Direction.left:
         for (int c = head.col - 1; c >= 0; c--) {
-          final other = pieceAt(head.row, c, includeExiting: true);
+          final other = pieceAt(head.row, c);
           if (other != null && other.id != piece.id) return false;
         }
       case Direction.up:
         for (int r = head.row - 1; r >= 0; r--) {
-          final other = pieceAt(r, head.col, includeExiting: true);
+          final other = pieceAt(r, head.col);
           if (other != null && other.id != piece.id) return false;
         }
       case Direction.down:
         for (int r = head.row + 1; r < level.rows; r++) {
-          final other = pieceAt(r, head.col, includeExiting: true);
+          final other = pieceAt(r, head.col);
           if (other != null && other.id != piece.id) return false;
         }
     }

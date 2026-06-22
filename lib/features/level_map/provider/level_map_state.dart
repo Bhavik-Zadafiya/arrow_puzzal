@@ -48,19 +48,10 @@ class LevelMapState {
   }
 
   static LevelMapState mock() {
-    final levels = List.generate(40, (i) {
+    // All 200 levels unlocked for testing — every level is tappable.
+    final levels = List.generate(200, (i) {
       final id = i + 1;
-      LevelStatus status;
-      int stars = 0;
-      if (id < 8) {
-        status = LevelStatus.completed;
-        stars = [3, 2, 3, 1, 3, 2, 3][i % 7];
-      } else if (id == 8) {
-        status = LevelStatus.current;
-      } else {
-        status = LevelStatus.locked;
-      }
-      return LevelData(id: id, status: status, stars: stars);
+      return LevelData(id: id, status: LevelStatus.current);
     });
     return LevelMapState(
       levels: levels,

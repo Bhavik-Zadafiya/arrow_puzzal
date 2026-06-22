@@ -51,8 +51,22 @@ class PiecePainter extends CustomPainter {
 
     if (drainT <= 0.0) {
       // Resting: body up to head-cell centre + arrowhead tip at cell edge.
-      canvas.drawPath(_buildBodyPath(pts), paint);
-      _drawArrowHead(canvas, pts.last, pts[pts.length - 2], cellSize, color);
+      final body = _buildBodyPath(pts);
+      // For 1-cell pieces, add a stub tail in the opposite direction so the
+      // piece looks like ─► rather than just ►.
+      if (cells.length == 1) {
+        final center = pts[pts.length - 2];
+        final edge   = pts.last;
+        final stubEnd = Offset(
+          center.dx + (center.dx - edge.dx) * 0.45,
+          center.dy + (center.dy - edge.dy) * 0.45,
+        );
+        body.moveTo(center.dx, center.dy);
+        body.lineTo(stubEnd.dx, stubEnd.dy);
+      }
+      canvas.drawPath(body, paint);
+      _drawArrowHead(canvas, pts.last, pts[pts.length - 2], cellSize, color,
+          numCells: cells.length);
       return;
     }
 
@@ -82,6 +96,7 @@ class PiecePainter extends CustomPainter {
       _drawArrowHead(
         canvas, pts.last, pts[pts.length - 2], cellSize,
         color.withValues(alpha: 1.0 - drainT / 0.08),
+        numCells: cells.length,
       );
     }
   }
@@ -170,8 +185,10 @@ class PiecePainter extends CustomPainter {
 
   /// Solid filled triangle. Tip at [tip] (cell edge), base centred on [prev]
   /// (head cell centre) — so the arrowhead visually protrudes past the body.
+  /// [numCells] is used to scale the arrowhead narrower on very short pieces.
   void _drawArrowHead(
-      Canvas canvas, Offset tip, Offset prev, double cellSize, Color color) {
+      Canvas canvas, Offset tip, Offset prev, double cellSize, Color color,
+      {int numCells = 10}) {
     final dx = tip.dx - prev.dx, dy = tip.dy - prev.dy;
     final d = math.sqrt(dx * dx + dy * dy);
     if (d == 0) return;
@@ -181,7 +198,15 @@ class PiecePainter extends CustomPainter {
 
     // Arrowhead spans the full half-cell (centre → edge).
     final len = d;                    // = cellSize * 0.5
-    final wid = cellSize * 0.36;     // half-width of base
+    // Scale base width down for very short pieces so the head looks proportional
+    // to the (short) body rather than dominating it.
+    final wid = numCells >= 4
+        ? cellSize * 0.36
+        : numCells == 3
+            ? cellSize * 0.30
+            : numCells == 2
+                ? cellSize * 0.22
+                : cellSize * 0.16;
 
     // Base is at [prev] (head cell centre).
     final bx = tip.dx - ux * len;

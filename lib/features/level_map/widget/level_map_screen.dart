@@ -326,9 +326,7 @@ class _MapTabState extends State<_MapTab> {
                   top:  pos.dy - half,
                   child: LevelNode(
                     level: level,
-                    onTap: level.status == LevelStatus.current
-                        ? () => context.go('/gameplay')
-                        : null,
+                    onTap: () => context.go('/gameplay?level=${level.id}'),
                   )
                       .animate(delay: (i * 35).ms)
                       .fadeIn(duration: 380.ms, curve: Curves.easeOut)
