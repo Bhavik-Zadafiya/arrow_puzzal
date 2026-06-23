@@ -1,7 +1,7 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -10,10 +10,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_assets.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_strings.dart';
 import '../provider/level_map_cubit.dart';
 import '../provider/level_map_state.dart';
 import 'bottom_nav_bar.dart';
+import 'daily_tab.dart';
+import 'dev_map_dialog.dart';
 import 'level_node.dart';
 import 'level_path_painter.dart';
 import 'top_status_bar.dart';
@@ -24,6 +25,7 @@ class LevelMapScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
+      // Always create a fresh cubit so progress is re-read after gameplay.
       create: (_) => LevelMapCubit(),
       child: const _LevelMapView(),
     );
@@ -50,14 +52,62 @@ class _LevelMapView extends StatelessWidget {
             children: [
               _buildBody(context, state),
               Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
+                left: 0, right: 0, bottom: 0,
                 child: GameBottomNavBar(
                   activeIndex: state.activeTab,
-                  onTap: context.read<LevelMapCubit>().setActiveTab,
+                  onTap: (index) {
+                    if (index == 2) {
+                      context.go('/settings');
+                    } else {
+                      context.read<LevelMapCubit>().setActiveTab(index);
+                    }
+                  },
                 ),
               ),
+              // ── Developer debug button (debug builds only) ───────────────
+              if (kDebugMode)
+                Positioned(
+                  right: 16,
+                  bottom: 90, // above nav bar
+                  child: GestureDetector(
+                    onTap: () => showDialog(
+                      context: context,
+                      builder: (_) => const DevMapDialog(),
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: Colors.black87,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color: const Color(0xFFFFD700)
+                                .withValues(alpha: 0.7),
+                            width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                              color:
+                                  const Color(0xFFFFD700).withValues(alpha: 0.2),
+                              blurRadius: 8),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.bug_report,
+                              color: Color(0xFFFFD700), size: 15),
+                          SizedBox(width: 5),
+                          Text('DEV',
+                              style: TextStyle(
+                                  color: Color(0xFFFFD700),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         );
@@ -68,8 +118,8 @@ class _LevelMapView extends StatelessWidget {
   Widget _buildBody(BuildContext context, LevelMapState state) {
     return switch (state.activeTab) {
       0 => _MapTab(levels: state.levels),
-      1 => _PlaceholderTab(message: AppStrings.dailyPlaceholder),
-      _ => _PlaceholderTab(message: AppStrings.settingsPlaceholder),
+      1 => const DailyTab(),
+      _ => const SizedBox.shrink(),
     };
   }
 }
@@ -326,7 +376,9 @@ class _MapTabState extends State<_MapTab> {
                   top:  pos.dy - half,
                   child: LevelNode(
                     level: level,
-                    onTap: () => context.go('/gameplay?level=${level.id}'),
+                    onTap: level.status == LevelStatus.locked
+                        ? null
+                        : () => context.go('/gameplay?level=${level.id}'),
                   )
                       .animate(delay: (i * 35).ms)
                       .fadeIn(duration: 380.ms, curve: Curves.easeOut)
@@ -477,24 +529,4 @@ class _PulsingSparkle extends StatelessWidget {
   }
 }
 
-// ============================================================================
-// Placeholder tabs
-// ============================================================================
 
-class _PlaceholderTab extends StatelessWidget {
-  const _PlaceholderTab({required this.message});
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        message,
-        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: AppColors.textWarm.withValues(alpha: 0.4),
-            ),
-        textAlign: TextAlign.center,
-      ),
-    );
-  }
-}

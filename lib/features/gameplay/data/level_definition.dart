@@ -37,16 +37,19 @@ class LevelDefinition {
     required this.rows,
     required this.cols,
     required this.pieces,
-    this.shapeCells, // null = full rectangular grid
+    this.shapeCells,
+    this.complexity = 0,
   });
   final String id;
   final int rows;
   final int cols;
   final List<PieceDefinition> pieces;
 
-  /// Set of 'row,col' keys that make up the active shape.
-  /// Null means the full grid is used.
+  /// Set of 'row,col' keys for shape levels. Null = full rectangular grid.
   final Set<String>? shapeCells;
+
+  /// Complexity score 0–1000. Used for display and difficulty labelling.
+  final int complexity;
 
   int get expectedCells => shapeCells?.length ?? rows * cols;
 }

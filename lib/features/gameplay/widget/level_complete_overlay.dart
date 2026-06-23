@@ -10,11 +10,13 @@ class LevelCompleteOverlay extends StatelessWidget {
     required this.mistakes,
     required this.onNext,
     required this.onHome,
+    this.isDaily = false,
   });
 
   final int mistakes;
   final VoidCallback onNext;
   final VoidCallback onHome;
+  final bool isDaily;
 
   int get _stars {
     if (mistakes == 0) return 3;
@@ -85,7 +87,7 @@ class LevelCompleteOverlay extends StatelessWidget {
                       borderRadius: BorderRadius.circular(16)),
                 ),
                 child: Text(
-                  AppStrings.gameplayNextLevel,
+                  isDaily ? 'Back to Daily' : AppStrings.gameplayNextLevel,
                   style: textTheme.labelLarge
                       ?.copyWith(fontWeight: FontWeight.w800),
                 ),

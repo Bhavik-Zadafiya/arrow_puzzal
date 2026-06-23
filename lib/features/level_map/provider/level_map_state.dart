@@ -1,3 +1,5 @@
+import '../../../core/services/progress_service.dart';
+
 enum LevelStatus { locked, current, completed }
 
 class LevelData {
@@ -10,7 +12,7 @@ class LevelData {
   final int id;
   final LevelStatus status;
 
-  /// 0 = not completed, 1–3 = stars earned
+  /// 0 = not completed yet, 1–3 = stars earned.
   final int stars;
 
   bool get isMilestone => id % 10 == 0;
@@ -37,25 +39,39 @@ class LevelMapState {
     int? lifelineMax,
     int? regenSecondsRemaining,
     int? activeTab,
-  }) {
-    return LevelMapState(
-      levels: levels ?? this.levels,
-      lifelineCount: lifelineCount ?? this.lifelineCount,
-      lifelineMax: lifelineMax ?? this.lifelineMax,
-      regenSecondsRemaining: regenSecondsRemaining ?? this.regenSecondsRemaining,
-      activeTab: activeTab ?? this.activeTab,
-    );
-  }
+  }) =>
+      LevelMapState(
+        levels: levels ?? this.levels,
+        lifelineCount: lifelineCount ?? this.lifelineCount,
+        lifelineMax: lifelineMax ?? this.lifelineMax,
+        regenSecondsRemaining:
+            regenSecondsRemaining ?? this.regenSecondsRemaining,
+        activeTab: activeTab ?? this.activeTab,
+      );
 
-  static LevelMapState mock() {
-    // All 200 levels unlocked for testing — every level is tappable.
-    final levels = List.generate(200, (i) {
+  /// Build state from persisted progress. ProgressService must be initialised.
+  static LevelMapState fromProgress() {
+    final svc = ProgressService.instance;
+    final highest = svc.highestUnlocked;
+
+    final levels = List.generate(500, (i) {
       final id = i + 1;
-      return LevelData(id: id, status: LevelStatus.current);
+      final stars = svc.starsFor(id);
+      LevelStatus status;
+      if (id > highest) {
+        status = LevelStatus.locked;
+      } else if (stars > 0) {
+        status = LevelStatus.completed;
+      } else {
+        // Unlocked but not beaten — treat as current (playable frontier).
+        status = LevelStatus.current;
+      }
+      return LevelData(id: id, status: status, stars: stars);
     });
+
     return LevelMapState(
       levels: levels,
-      lifelineCount: 7,
+      lifelineCount: svc.lifelineCount.clamp(0, 10),
       lifelineMax: 10,
       regenSecondsRemaining: 840,
     );

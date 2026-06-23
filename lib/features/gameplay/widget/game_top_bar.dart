@@ -13,6 +13,7 @@ class GameTopBar extends StatefulWidget {
     required this.onClose,
     required this.onHint,
     this.isHintActive = false,
+    this.complexity = 0,
   });
 
   final String levelId;
@@ -21,6 +22,7 @@ class GameTopBar extends StatefulWidget {
   final VoidCallback onClose;
   final VoidCallback onHint;
   final bool isHintActive;
+  final int complexity;
 
   @override
   State<GameTopBar> createState() => _GameTopBarState();
@@ -83,19 +85,35 @@ class _GameTopBarState extends State<GameTopBar>
               _CircleBtn(icon: Iconsax.arrow_left, onTap: widget.onClose),
               const SizedBox(width: 14),
 
-              ShaderMask(
-                shaderCallback: (b) => const LinearGradient(
-                  colors: [AppColors.goldCream, AppColors.accentGold],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ).createShader(b),
-                child: Text(
-                  '${AppStrings.gameplayLevelLabel} ${widget.levelId}',
-                  style: textTheme.headlineMedium?.copyWith(
-                    color: Colors.white,
-                    fontSize: 22,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ShaderMask(
+                    shaderCallback: (b) => const LinearGradient(
+                      colors: [AppColors.goldCream, AppColors.accentGold],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ).createShader(b),
+                    child: Text(
+                      '${AppStrings.gameplayLevelLabel} ${widget.levelId}',
+                      style: textTheme.headlineMedium?.copyWith(
+                        color: Colors.white,
+                        fontSize: 20,
+                      ),
+                    ),
                   ),
-                ),
+                  if (widget.complexity > 0)
+                    Text(
+                      'Complexity ${widget.complexity}/1000',
+                      style: TextStyle(
+                        color: AppColors.accentGold.withValues(alpha: 0.75),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                ],
               ),
 
               const Spacer(),

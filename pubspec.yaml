@@ -30,9 +30,10 @@ dependencies:
 
   # google_mobile_ads — add back when App ID is ready (crashes on start without one)
 
-  # Local persistence — dependency only, no boxes set up yet
+  # Local persistence
   hive: ^2.2.3
   hive_flutter: ^1.1.0
+  shared_preferences: ^2.3.2
   audioplayers: ^6.7.1
 
 dev_dependencies:

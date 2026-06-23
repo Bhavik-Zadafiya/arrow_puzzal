@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../../core/services/settings_service.dart';
 import '../provider/gameplay_state.dart';
 import 'piece_painter.dart';
 
@@ -74,10 +76,16 @@ class _PieceWidgetState extends State<PieceWidget>
 
     if (widget.piece.isExiting && !old.piece.isExiting) {
       _exitCtrl.forward(from: 0);
+      if (SettingsService.instance.hapticsEnabled) {
+        HapticFeedback.lightImpact();
+      }
     }
     if (widget.piece.shakeCount > old.piece.shakeCount) {
       setState(() => _showError = true);
       _shakeCtrl.forward(from: 0);
+      if (SettingsService.instance.hapticsEnabled) {
+        HapticFeedback.mediumImpact();
+      }
     }
     if (widget.piece.isHinted && !old.piece.isHinted) {
       _startHint();

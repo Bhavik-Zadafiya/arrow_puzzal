@@ -91,11 +91,12 @@ LevelDefinition generateLevel({
   required int rows,
   required int cols,
   required int seed,
-  int minTurns = 2,
-  int maxTurns = 4,
-  int minStep  = 2,
-  int maxStep  = 5,
-  Set<String>? shapeMask, // null = full grid
+  int minTurns   = 2,
+  int maxTurns   = 4,
+  int minStep    = 2,
+  int maxStep    = 5,
+  int complexity = 0,
+  Set<String>? shapeMask,
 }) {
   var s = seed;
   int rng(int max) { s = _lcg(s); return s % max; }
@@ -169,7 +170,34 @@ LevelDefinition generateLevel({
         }
         // If still 1 cell (fully surrounded), keep it — the painter draws a stub tail.
       }
-      pieces.add(PieceDefinition(id: '${idx++}', cells: cells, direction: dirs[dir]));
+
+      // After all turns, count how many consecutive cells trail the path in the
+      // current exit direction.  If < 2, try to extend so the tip has context.
+      if (cells.length >= 2) {
+        final exitD = dirs[dir];
+        int tailLen = 0;
+        for (int i = cells.length - 1; i >= 1; i--) {
+          final a = cells[i - 1], b = cells[i];
+          final segDir = (b.col > a.col) ? Direction.right
+              : (b.col < a.col) ? Direction.left
+              : (b.row > a.row) ? Direction.down : Direction.up;
+          if (segDir == exitD) { tailLen++; } else { break; }
+        }
+        if (tailLen < 2) {
+          // Try to append 1 more cell in the exit direction.
+          final nr = r + dr[dir], nc = c + dc[dir];
+          if (free(nr, nc)) {
+            occ[nr][nc] = true;
+            cells.add(GridPos(nr, nc));
+          }
+        }
+      }
+
+      // Always derive the exit direction from the actual path geometry —
+      // never trust `dirs[dir]` which might differ if the final segment
+      // was blocked after a turn.
+      final exitDirection = cells.length >= 2 ? _exitDir(cells) : dirs[dir];
+      pieces.add(PieceDefinition(id: '${idx++}', cells: cells, direction: exitDirection));
     }
   }
 
@@ -272,6 +300,39 @@ LevelDefinition generateLevel({
     }
   }
 
+  // ── 3. Post-process: fix direction/path mismatches without breaking cycles ───
+  //
+  // The cycle-breaker may have left some pieces with direction != _exitDir(cells)
+  // (forced direction that doesn't match the last body segment).  This makes the
+  // arrowhead point the wrong way.
+  //
+  // Strategy: for each mismatched piece, try the two safe fixes in order:
+  //   1. Reverse cells — if _exitDir(rev) == p.direction, use rev (keeps direction).
+  //   2. Change direction to _exitDir(cells) — visually correct but may break a cycle.
+  // For option 2, check if the resulting dep-graph is still cycle-free before
+  // committing.  If it isn't, leave the piece as-is (visual mismatch tolerated
+  // for solvability).
+  for (int i = 0; i < pieces.length; i++) {
+    final p = pieces[i];
+    final natural = _exitDir(p.cells);
+    if (natural == p.direction) continue;
+
+    // Option 1: reverse cells, keep direction.
+    final rev = p.cells.reversed.toList();
+    if (_exitDir(rev) == p.direction) {
+      pieces[i] = PieceDefinition(id: p.id, cells: rev, direction: p.direction);
+      continue;
+    }
+
+    // Option 2: change direction to natural exit of current cells.
+    final candidate = PieceDefinition(id: p.id, cells: p.cells, direction: natural);
+    final saved = pieces[i];
+    pieces[i] = candidate;
+    if (_findCycle(_buildDeps(pieces, owner, rows, cols)) != null) {
+      pieces[i] = saved; // revert — would break solvability
+    }
+  }
+
   return LevelDefinition(id: id, rows: rows, cols: cols, pieces: pieces,
-      shapeCells: shapeMask);
+      shapeCells: shapeMask, complexity: complexity);
 }

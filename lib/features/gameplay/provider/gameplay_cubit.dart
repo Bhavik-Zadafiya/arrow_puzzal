@@ -79,6 +79,19 @@ class GameplayCubit extends Cubit<GameplayState> {
   List<GamePiece> _clearAllHints(List<GamePiece> pieces) =>
       pieces.map((p) => p.isHinted ? p.copyWith(isHinted: false) : p).toList();
 
+  /// Automatically taps pieces one-by-one in a valid solve order.
+  /// Each tap is separated by 700 ms so the exit animation can finish.
+  Future<void> autoSolve() async {
+    while (!isClosed && state.phase == GamePhase.playing) {
+      final free = state.pieces
+          .where((p) => p.isActive && state.isPathClear(p))
+          .toList();
+      if (free.isEmpty) break;
+      tapPiece(free.first.id);
+      await Future.delayed(const Duration(milliseconds: 700));
+    }
+  }
+
   // Stub — wire real AdMob rewarded ad when App ID is ready
   void watchAd() =>
       emit(state.copyWith(mistakes: 0, phase: GamePhase.playing));

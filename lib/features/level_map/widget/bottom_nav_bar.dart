@@ -30,7 +30,7 @@ class GameBottomNavBar extends StatelessWidget {
       padding: EdgeInsets.only(
         left: 24,
         right: 24,
-        bottom: bottomInset + 16,
+        bottom: bottomInset,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(36),
