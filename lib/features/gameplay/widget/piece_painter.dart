@@ -31,8 +31,16 @@ class PiecePainter extends CustomPainter {
 
   Color get _color {
     if (isError) return AppColors.pieceLeft;
-    if (isHinted) return const Color(0xFFFFD700); // gold-yellow hint
+    if (isHinted) return const Color(0xFFFFD700);
     return Colors.white;
+  }
+
+  // Arrowhead is always gold so it pops out even when bodies of adjacent
+  // pieces are touching. Error state keeps red for the whole piece.
+  Color get _tipColor {
+    if (isError) return AppColors.pieceLeft;
+    if (isHinted) return const Color(0xFFFFD700);
+    return AppColors.accentGold;
   }
 
   @override
@@ -65,7 +73,7 @@ class PiecePainter extends CustomPainter {
         body.lineTo(stubEnd.dx, stubEnd.dy);
       }
       canvas.drawPath(body, paint);
-      _drawArrowHead(canvas, pts.last, pts[pts.length - 2], cellSize, color,
+      _drawArrowHead(canvas, pts.last, pts[pts.length - 2], cellSize, _tipColor,
           numCells: cells.length);
       return;
     }
@@ -153,12 +161,40 @@ class PiecePainter extends CustomPainter {
       final hx   = (head.col + 0.5) * cellSize;
       final hy   = (head.row + 0.5) * cellSize;
       final half = cellSize * 0.5;
-      pts.add(switch (direction) {
+
+      final edgePt = switch (direction) {
         Direction.right => Offset(hx + half, hy),
         Direction.left  => Offset(hx - half, hy),
         Direction.up    => Offset(hx, hy - half),
         Direction.down  => Offset(hx, hy + half),
-      });
+      };
+
+      // If the natural exit of the body disagrees with [direction] (can happen
+      // when the cycle-breaker forced a non-natural direction), insert a short
+      // redirect waypoint 20 % into the last cell toward [direction].
+      // This makes the body visually turn before the arrowhead so the tip
+      // always matches the actual exit direction.
+      if (cells.length >= 2) {
+        final p = cells[cells.length - 2];
+        final h = cells.last;
+        final naturalDir = (h.col > p.col) ? Direction.right
+            : (h.col < p.col) ? Direction.left
+            : (h.row > p.row) ? Direction.down
+            : Direction.up;
+
+        if (naturalDir != direction) {
+          final offset = cellSize * 0.20;
+          final redirect = switch (direction) {
+            Direction.right => Offset(hx + offset, hy),
+            Direction.left  => Offset(hx - offset, hy),
+            Direction.up    => Offset(hx, hy - offset),
+            Direction.down  => Offset(hx, hy + offset),
+          };
+          pts.add(redirect);
+        }
+      }
+
+      pts.add(edgePt);
     }
     return pts;
   }

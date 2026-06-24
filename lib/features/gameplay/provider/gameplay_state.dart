@@ -1,6 +1,9 @@
+import '../../../core/services/progress_service.dart';
 import '../data/level_definition.dart';
 
 enum GamePhase { playing, failed, levelComplete }
+
+enum HintResult { shown, noMovesAvailable, exhausted }
 
 class GamePiece {
   const GamePiece({
@@ -46,14 +49,16 @@ class GameplayState {
     required this.pieces,
     required this.mistakes,
     required this.phase,
-    required this.mockLifelines,
+    required this.lifelineCount,
+    required this.hintsRemaining,
   });
 
   final LevelDefinition level;
   final List<GamePiece> pieces;
   final int mistakes;
   final GamePhase phase;
-  final int mockLifelines;
+  final int lifelineCount;
+  final int hintsRemaining;
 
   static const int maxMistakes = 3;
 
@@ -68,21 +73,24 @@ class GameplayState {
             .toList(),
         mistakes: 0,
         phase: GamePhase.playing,
-        mockLifelines: 7,
+        lifelineCount: ProgressService.instance.lifelineCount,
+        hintsRemaining: ProgressService.instance.hintsRemainingToday,
       );
 
   GameplayState copyWith({
     List<GamePiece>? pieces,
     int? mistakes,
     GamePhase? phase,
-    int? mockLifelines,
+    int? lifelineCount,
+    int? hintsRemaining,
   }) =>
       GameplayState(
         level: level,
         pieces: pieces ?? this.pieces,
         mistakes: mistakes ?? this.mistakes,
         phase: phase ?? this.phase,
-        mockLifelines: mockLifelines ?? this.mockLifelines,
+        lifelineCount: lifelineCount ?? this.lifelineCount,
+        hintsRemaining: hintsRemaining ?? this.hintsRemaining,
       );
 
   GamePiece? pieceAt(int row, int col, {bool includeExiting = false}) {

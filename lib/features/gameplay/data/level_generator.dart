@@ -14,6 +14,16 @@ Direction _exitDir(List<GridPos> cells) {
 
 const _allDirs = [Direction.right, Direction.left, Direction.up, Direction.down];
 
+// Returns true when the cell immediately ahead of the head in [dir] is also
+// part of the same piece — the arrowhead would visually point INTO the body.
+bool _arrowPointsInward(List<GridPos> cells, Direction dir) {
+  if (cells.isEmpty) return false;
+  final head = cells.last;
+  final nr = head.row + (dir == Direction.down  ? 1 : dir == Direction.up   ? -1 : 0);
+  final nc = head.col + (dir == Direction.right ? 1 : dir == Direction.left ? -1 : 0);
+  return cells.any((c) => c.row == nr && c.col == nc);
+}
+
 // ── Dependency helpers ────────────────────────────────────────────────────────
 
 // IDs of every OTHER piece whose cells occupy cells.last's exit path in [dir].
@@ -193,11 +203,24 @@ LevelDefinition generateLevel({
         }
       }
 
-      // Always derive the exit direction from the actual path geometry —
-      // never trust `dirs[dir]` which might differ if the final segment
-      // was blocked after a turn.
-      final exitDirection = cells.length >= 2 ? _exitDir(cells) : dirs[dir];
-      pieces.add(PieceDefinition(id: '${idx++}', cells: cells, direction: exitDirection));
+      // Derive exit direction from geometry. If it points back into the body
+      // (U-turn / enclosed shape), try the reversed traversal instead.
+      List<GridPos> finalCells = cells;
+      Direction exitDirection;
+      if (cells.length >= 2) {
+        final fwdDir = _exitDir(cells);
+        final rev    = cells.reversed.toList();
+        final revDir = _exitDir(rev);
+        if (_arrowPointsInward(cells, fwdDir) && !_arrowPointsInward(rev, revDir)) {
+          finalCells    = rev;
+          exitDirection = revDir;
+        } else {
+          exitDirection = fwdDir;
+        }
+      } else {
+        exitDirection = dirs[dir];
+      }
+      pieces.add(PieceDefinition(id: '${idx++}', cells: finalCells, direction: exitDirection));
     }
   }
 
@@ -251,86 +274,89 @@ LevelDefinition generateLevel({
 
     final cycleSet = cycle.toSet();
 
-    // Scan EVERY cycle member and pick the (cells, dir) candidate that
-    // minimises cycle-member dependencies.  No early exit — we want the
-    // global best across all members.
+    // Scan EVERY cycle member and pick the best (cells, dir) candidate.
+    // Score = cd*2 + mismatch:  lower is better.
+    //   cd       = number of cycle-member dependencies (primary: must be 0 to break cycle)
+    //   mismatch = 1 if _exitDir(cells) != dir (visually wrong), 0 if correct
+    // Ties on cd go to the visually-correct candidate automatically.
     String? bestPieceId;
     int?    bestPieceIdx;
     List<GridPos>? bestCells;
     Direction?     bestDir;
-    int bestCycleDeps = 9999;
+    int bestScore = 9999;
 
     for (final cid in cycle) {
       final i = pieces.indexWhere((p) => p.id == cid);
       final p = pieces[i];
 
       for (final (cells, dir) in candidates(p)) {
-        final newDeps = _depsOf(p.id, cells, dir, owner, rows, cols);
-        final cd = newDeps.where(cycleSet.contains).length;
-        if (cd < bestCycleDeps) {
-          bestCycleDeps = cd;
-          bestPieceId   = cid;
-          bestPieceIdx  = i;
-          bestCells     = cells;
-          bestDir       = dir;
-          if (cd == 0) break; // perfect — can't do better
+        final newDeps  = _depsOf(p.id, cells, dir, owner, rows, cols);
+        final cd       = newDeps.where(cycleSet.contains).length;
+        final mismatch = _exitDir(cells) != dir ? 1 : 0;
+        final inward   = _arrowPointsInward(cells, dir) ? 3 : 0;
+        final score    = cd * 2 + mismatch + inward;
+        if (score < bestScore) {
+          bestScore    = score;
+          bestPieceId  = cid;
+          bestPieceIdx = i;
+          bestCells    = cells;
+          bestDir      = dir;
+          if (score == 0) break; // cd=0 AND visually correct — perfect
         }
       }
-      if (bestCycleDeps == 0) break; // already perfect
+      if (bestScore == 0) break; // already perfect across all members
     }
 
-    // Apply the best redirect found — accept ANY improvement (even partial).
+    // Apply the best redirect found — always commit (even partial improvement
+    // shifts the graph and lets the next pass make more progress).
     if (bestPieceIdx != null && bestCells != null && bestDir != null) {
-      final origDeps = (deps[bestPieceId] ?? {}).where(cycleSet.contains).length;
-      if (bestCycleDeps < origDeps) {
-        pieces[bestPieceIdx] = PieceDefinition(
-          id: bestPieceId ?? '',
-          cells: bestCells,
-          direction: bestDir,
-        );
-      } else {
-        // Count-equal but redirect to break the specific cycle edge even if
-        // total cycle-dep count stays the same (different members → new graph).
-        pieces[bestPieceIdx] = PieceDefinition(
-          id: bestPieceId ?? '',
-          cells: bestCells,
-          direction: bestDir,
-        );
-      }
+      pieces[bestPieceIdx] = PieceDefinition(
+        id: bestPieceId ?? '',
+        cells: bestCells,
+        direction: bestDir,
+      );
     }
   }
 
   // ── 3. Post-process: fix direction/path mismatches without breaking cycles ───
   //
-  // The cycle-breaker may have left some pieces with direction != _exitDir(cells)
-  // (forced direction that doesn't match the last body segment).  This makes the
-  // arrowhead point the wrong way.
+  // The cycle-breaker may have left pieces where direction != _exitDir(cells),
+  // causing the arrowhead to visually point the wrong way.
   //
-  // Strategy: for each mismatched piece, try the two safe fixes in order:
-  //   1. Reverse cells — if _exitDir(rev) == p.direction, use rev (keeps direction).
-  //   2. Change direction to _exitDir(cells) — visually correct but may break a cycle.
-  // For option 2, check if the resulting dep-graph is still cycle-free before
-  // committing.  If it isn't, leave the piece as-is (visual mismatch tolerated
-  // for solvability).
-  for (int i = 0; i < pieces.length; i++) {
-    final p = pieces[i];
-    final natural = _exitDir(p.cells);
-    if (natural == p.direction) continue;
+  // Try all four visually-correct (cells, direction) combos in priority order,
+  // accepting the first one that keeps the dep-graph cycle-free.
+  // Run multiple passes — each pass can unlock fixes the previous couldn't,
+  // because fixing one piece changes the dep-graph for its neighbours.
+  for (int pass = 0; pass < 3; pass++) {
+    bool anyFixed = false;
 
-    // Option 1: reverse cells, keep direction.
-    final rev = p.cells.reversed.toList();
-    if (_exitDir(rev) == p.direction) {
-      pieces[i] = PieceDefinition(id: p.id, cells: rev, direction: p.direction);
-      continue;
+    for (int i = 0; i < pieces.length; i++) {
+      final p      = pieces[i];
+      final fwd    = p.cells;
+      final rev    = p.cells.reversed.toList();
+      final fwdDir = _exitDir(fwd);
+      final revDir = _exitDir(rev);
+
+      // Skip if already visually correct AND tip doesn't point into the body.
+      if (fwdDir == p.direction && !_arrowPointsInward(fwd, p.direction)) continue;
+
+      for (final candidate in [
+        PieceDefinition(id: p.id, cells: rev, direction: revDir),
+        PieceDefinition(id: p.id, cells: fwd, direction: fwdDir),
+      ]) {
+        if (_exitDir(candidate.cells) != candidate.direction) continue;
+        // Never accept a candidate whose tip points back into the piece body.
+        if (_arrowPointsInward(candidate.cells, candidate.direction)) continue;
+        pieces[i] = candidate;
+        if (_findCycle(_buildDeps(pieces, owner, rows, cols)) == null) {
+          anyFixed = true;
+          break; // this piece is fixed — move to next
+        }
+        pieces[i] = p; // revert
+      }
     }
 
-    // Option 2: change direction to natural exit of current cells.
-    final candidate = PieceDefinition(id: p.id, cells: p.cells, direction: natural);
-    final saved = pieces[i];
-    pieces[i] = candidate;
-    if (_findCycle(_buildDeps(pieces, owner, rows, cols)) != null) {
-      pieces[i] = saved; // revert — would break solvability
-    }
+    if (!anyFixed) break; // no progress this pass — stop early
   }
 
   return LevelDefinition(id: id, rows: rows, cols: cols, pieces: pieces,

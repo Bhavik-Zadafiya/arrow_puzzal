@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/settings_service.dart';
 import '../data/level_definition.dart';
 import '../provider/gameplay_cubit.dart';
 import '../provider/gameplay_state.dart';
@@ -45,6 +47,9 @@ class GameGrid extends StatelessWidget {
                   final row = (y / cellSize).floor().clamp(0, state.level.rows - 1);
                   final piece = state.pieceAt(row, col);
                   if (piece != null) {
+                    if (SettingsService.instance.hapticsEnabled) {
+                      HapticFeedback.selectionClick();
+                    }
                     context.read<GameplayCubit>().tapPiece(piece.id);
                   }
                 },

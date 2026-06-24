@@ -7,6 +7,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/services/audio_service.dart';
 import '../../../core/services/progress_service.dart';
 import '../../../core/services/settings_service.dart';
+import '../../gameplay/data/level_service.dart';
 import '../../level_map/provider/level_map_cubit.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -21,13 +22,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _musicEnabled;
   late double _volume;
   late bool _hapticsEnabled;
+  late int _difficultyLevel;
 
   @override
   void initState() {
     super.initState();
-    _musicEnabled = AudioService.instance.musicEnabled;
-    _volume = AudioService.instance.volume;
-    _hapticsEnabled = SettingsService.instance.hapticsEnabled;
+    _musicEnabled    = AudioService.instance.musicEnabled;
+    _volume          = AudioService.instance.volume;
+    _hapticsEnabled  = SettingsService.instance.hapticsEnabled;
+    _difficultyLevel = SettingsService.instance.difficultyLevel;
   }
 
   @override
@@ -41,7 +44,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Iconsax.arrow_left, color: AppColors.textWarm),
-          onPressed: () => context.go('/level-map'),
+          onPressed: () => context.pop(),
         ),
         title: ShaderMask(
           shaderCallback: (b) => const LinearGradient(
@@ -139,6 +142,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 await SettingsService.instance.setHapticsEnabled(v);
               },
             ),
+            const _Divider(),
+            _DifficultyRow(
+              value: _difficultyLevel,
+              onChanged: (v) async {
+                setState(() => _difficultyLevel = v);
+                await SettingsService.instance.setDifficultyLevel(v);
+                clearLevelCache();
+              },
+            ),
           ]),
 
           const SizedBox(height: 20),
@@ -188,7 +200,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _TapRow(
               icon: Iconsax.shield_tick,
               label: 'Privacy Policy',
-              onTap: () => _comingSoon(context, 'Privacy Policy'),
+              onTap: () => context.push('/privacy-policy'),
             ),
           ]),
 
@@ -388,6 +400,92 @@ class _InfoRow extends StatelessWidget {
       trailing: Text(value,
           style: textTheme.bodyMedium?.copyWith(
               color: AppColors.textWarm.withValues(alpha: 0.5))),
+    );
+  }
+}
+
+class _DifficultyRow extends StatelessWidget {
+  const _DifficultyRow({required this.value, required this.onChanged});
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  String get _label {
+    if (value == 1)  return 'Easy';
+    if (value <= 3)  return 'Normal';
+    if (value <= 5)  return 'Challenging';
+    if (value <= 7)  return 'Hard';
+    if (value <= 9)  return 'Expert';
+    return 'Insane';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38, height: 38,
+                decoration: BoxDecoration(
+                  color: AppColors.accentGold.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Iconsax.activity, color: AppColors.accentGold, size: 20),
+              ),
+              const SizedBox(width: 14),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Puzzle Complexity',
+                      style: textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textWarm, fontWeight: FontWeight.w600)),
+                  Text('Affects grid size and piece count',
+                      style: textTheme.bodySmall?.copyWith(
+                          color: AppColors.textWarm.withValues(alpha: 0.45))),
+                ],
+              ),
+              const Spacer(),
+              Text(
+                '$value/10  $_label',
+                style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.accentGold.withValues(alpha: 0.85),
+                    fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: AppColors.accentGold,
+              inactiveTrackColor: AppColors.accentGold.withValues(alpha: 0.15),
+              thumbColor: AppColors.accentGold,
+              overlayColor: AppColors.accentGold.withValues(alpha: 0.15),
+              trackHeight: 3,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+            ),
+            child: Slider(
+              value: value.toDouble(),
+              min: 1,
+              max: 10,
+              divisions: 9,
+              onChanged: (v) => onChanged(v.round()),
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Easy', style: textTheme.bodySmall?.copyWith(
+                  color: AppColors.textWarm.withValues(alpha: 0.3), fontSize: 10)),
+              Text('Intense', style: textTheme.bodySmall?.copyWith(
+                  color: AppColors.textWarm.withValues(alpha: 0.3), fontSize: 10)),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

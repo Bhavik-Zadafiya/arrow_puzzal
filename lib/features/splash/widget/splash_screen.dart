@@ -34,19 +34,21 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              AppStrings.appName,
-              style: textTheme.displayLarge,
-              textAlign: TextAlign.center,
+            ShaderMask(
+              shaderCallback: (b) => const LinearGradient(
+                colors: [Color(0xFFD4B97A), AppColors.accentGold, Color(0xFFF0D080)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ).createShader(b),
+              child: Text(
+                AppStrings.appName,
+                style: textTheme.displayLarge?.copyWith(color: Colors.white),
+                textAlign: TextAlign.center,
+              ),
             )
                 .animate()
                 .fadeIn(duration: 700.ms, curve: Curves.easeOut)
-                .scaleXY(
-                  begin: 0.88,
-                  end: 1.0,
-                  duration: 700.ms,
-                  curve: Curves.easeOut,
-                ),
+                .scaleXY(begin: 0.88, end: 1.0, duration: 700.ms, curve: Curves.easeOut),
             const SizedBox(height: 12),
             Text(
               AppStrings.splashTagline,

@@ -13,7 +13,7 @@ class AppStrings {
   AppStrings._();
 
   // --- App ---
-  static const String appName = 'Arrow Pussal';
+  static const String appName = 'ArrowX';
 
   // --- Splash ---
   static const String splashTagline = 'A calm puzzle escape';

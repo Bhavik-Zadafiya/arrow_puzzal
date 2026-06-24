@@ -180,7 +180,7 @@ class _RegenBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress = 1 - (secondsRemaining / 1800);
+    final progress = 1 - (secondsRemaining / 1800.0).clamp(0.0, 1.0);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),

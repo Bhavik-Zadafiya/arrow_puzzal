@@ -5,6 +5,7 @@ import '../../features/gameplay/data/level_service.dart';
 import '../../features/gameplay/widget/gameplay_screen.dart';
 import '../../features/level_map/widget/level_map_screen.dart';
 import '../../features/settings/widget/settings_screen.dart';
+import '../../features/settings/widget/privacy_policy_screen.dart';
 import '../../features/splash/widget/splash_screen.dart';
 
 final GoRouter appRouter = GoRouter(
@@ -18,6 +19,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
+    ),
+    GoRoute(
+      path: '/privacy-policy',
+      builder: (context, state) => const PrivacyPolicyScreen(),
     ),
     GoRoute(
       path: '/gameplay',

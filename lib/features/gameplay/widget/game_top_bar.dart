@@ -13,7 +13,7 @@ class GameTopBar extends StatefulWidget {
     required this.onClose,
     required this.onHint,
     this.isHintActive = false,
-    this.complexity = 0,
+    this.hintsRemaining = 3,
   });
 
   final String levelId;
@@ -22,7 +22,7 @@ class GameTopBar extends StatefulWidget {
   final VoidCallback onClose;
   final VoidCallback onHint;
   final bool isHintActive;
-  final int complexity;
+  final int hintsRemaining;
 
   @override
   State<GameTopBar> createState() => _GameTopBarState();
@@ -103,16 +103,6 @@ class _GameTopBarState extends State<GameTopBar>
                       ),
                     ),
                   ),
-                  if (widget.complexity > 0)
-                    Text(
-                      'Complexity ${widget.complexity}/1000',
-                      style: TextStyle(
-                        color: AppColors.accentGold.withValues(alpha: 0.75),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
                 ],
               ),
 
@@ -128,29 +118,64 @@ class _GameTopBarState extends State<GameTopBar>
                 ),
                 child: GestureDetector(
                   onTap: widget.onHint,
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    margin: const EdgeInsets.only(right: 10),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: widget.isHintActive
-                          ? const Color(0xFFFFD700).withValues(alpha: 0.22)
-                          : AppColors.boardSurface,
-                      border: Border.all(
-                        color: widget.isHintActive
-                            ? const Color(0xFFFFD700)
-                            : AppColors.accentGold.withValues(alpha: 0.30),
-                        width: widget.isHintActive ? 1.8 : 1.0,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        margin: const EdgeInsets.only(right: 10),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: widget.isHintActive
+                              ? const Color(0xFFFFD700).withValues(alpha: 0.22)
+                              : AppColors.boardSurface,
+                          border: Border.all(
+                            color: widget.hintsRemaining <= 0
+                                ? AppColors.textWarm.withValues(alpha: 0.15)
+                                : widget.isHintActive
+                                    ? const Color(0xFFFFD700)
+                                    : AppColors.accentGold.withValues(alpha: 0.30),
+                            width: widget.isHintActive ? 1.8 : 1.0,
+                          ),
+                        ),
+                        child: Icon(
+                          Iconsax.lamp_on,
+                          color: widget.hintsRemaining <= 0
+                              ? AppColors.textWarm.withValues(alpha: 0.30)
+                              : widget.isHintActive
+                                  ? const Color(0xFFFFD700)
+                                  : AppColors.textWarm,
+                          size: 18,
+                        ),
                       ),
-                    ),
-                    child: Icon(
-                      Iconsax.lamp_on,
-                      color: widget.isHintActive
-                          ? const Color(0xFFFFD700)
-                          : AppColors.textWarm,
-                      size: 18,
-                    ),
+                      // Hint count badge (top-right of button)
+                      Positioned(
+                        top: -4,
+                        right: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: widget.hintsRemaining <= 0
+                                ? AppColors.textWarm.withValues(alpha: 0.20)
+                                : AppColors.accentGold,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${widget.hintsRemaining}',
+                            style: TextStyle(
+                              fontFamily: 'Nunito',
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: widget.hintsRemaining <= 0
+                                  ? AppColors.textWarm.withValues(alpha: 0.40)
+                                  : AppColors.backgroundDark,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

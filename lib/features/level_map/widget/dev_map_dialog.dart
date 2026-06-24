@@ -142,17 +142,15 @@ class _DevMapDialogState extends State<DevMapDialog> {
         Table(
           columnWidths: const {
             0: FixedColumnWidth(60),
-            1: FixedColumnWidth(80),
-            2: FixedColumnWidth(70),
-            3: FlexColumnWidth(),
+            1: FixedColumnWidth(70),
+            2: FlexColumnWidth(),
           },
           children: [
-            _tableRow(['Level', 'Score/1000', 'Grid', 'Turns/Step'],
+            _tableRow(['Level', 'Grid', 'Turns/Step'],
                 header: true),
             for (final n in _preview)
               _tableRow([
                 '$n',
-                '${complexityFor(n)}',
                 '${_gridFor(n)}×${_gridFor(n)}',
                 '${_minTurnsFor(n)}–${_maxTurnsFor(n)} / ${_maxStepFor(n)}',
               ]),
@@ -162,11 +160,26 @@ class _DevMapDialogState extends State<DevMapDialog> {
     );
   }
 
-  // Expose internal helpers for the table (mirrors level_service internals)
-  static int _gridFor(int n)     => n % 10 == 0 ? 26 : (14.0 + (n / 500.0) * 16.0).floor().clamp(14, 30);
-  static int _minTurnsFor(int n) => (2.0 + (n / 500.0) * 4.0).floor().clamp(2, 6);
-  static int _maxTurnsFor(int n) => (3.0 + (n / 500.0) * 5.0).floor().clamp(3, 8);
-  static int _maxStepFor(int n)  => (3.0 + (n / 500.0) * 5.0).floor().clamp(3, 8);
+  // Mirrors the parameter curves in level_service.dart (difficulty=5 default)
+  static int _gridFor(int n) {
+    double base;
+    if (n <= 20)       base = 6 + (n - 1) * (4.0 / 19);
+    else if (n <= 100) base = 10 + ((n - 20) / 80.0) * 12;
+    else               base = 22 + ((n - 100) / 400.0) * 8;
+    return base.floor().clamp(5, 40);
+  }
+  static int _minTurnsFor(int n) {
+    final base = n <= 20 ? 1.0 : n <= 100 ? 1 + ((n-20)/80.0)*3 : 4 + ((n-100)/400.0)*2;
+    return base.floor().clamp(1, 8);
+  }
+  static int _maxTurnsFor(int n) {
+    final base = n <= 20 ? 2.0 : n <= 100 ? 2 + ((n-20)/80.0)*4 : 6 + ((n-100)/400.0)*2;
+    return base.floor().clamp(2, 10);
+  }
+  static int _maxStepFor(int n) {
+    final base = n <= 20 ? 2.0 : n <= 100 ? 2 + ((n-20)/80.0)*3 : 5 + ((n-100)/400.0)*3;
+    return base.floor().clamp(2, 10);
+  }
 
   TableRow _tableRow(List<String> cells, {bool header = false}) {
     return TableRow(

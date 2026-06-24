@@ -1,10 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/daily_service.dart';
 import '../../../core/services/progress_service.dart';
+import '../../../core/services/settings_service.dart';
 import '../data/level_definition.dart';
 import '../provider/gameplay_cubit.dart';
 import '../provider/gameplay_state.dart';
@@ -65,17 +67,31 @@ class _GameplayView extends StatelessWidget {
           } else {
             ProgressService.instance.completeLevel(levelNumber, stars);
           }
+          // Success pulse: two heavy bumps
+          if (SettingsService.instance.hapticsEnabled) {
+            HapticFeedback.heavyImpact();
+            Future.delayed(const Duration(milliseconds: 120),
+                HapticFeedback.heavyImpact);
+          }
         }
 
         if (state.phase == GamePhase.failed) {
+          // Failure pattern: rapid triple buzz
+          if (SettingsService.instance.hapticsEnabled) {
+            HapticFeedback.vibrate();
+            Future.delayed(const Duration(milliseconds: 100),
+                HapticFeedback.vibrate);
+            Future.delayed(const Duration(milliseconds: 200),
+                HapticFeedback.vibrate);
+          }
           showDialog(
             context: context,
             barrierDismissible: false,
             builder: (dialogCtx) => ContinueDialog(
-              lifelineCount: state.mockLifelines,
+              lifelineCount: state.lifelineCount,
               onWatchAd: () => context.read<GameplayCubit>().watchAd(),
               onSpendLife: () => context.read<GameplayCubit>().spendLifeline(),
-              onGiveUp: () => context.go('/level-map'),
+              onGiveUp: () => context.pop(),
             ),
           );
         }
@@ -83,7 +99,14 @@ class _GameplayView extends StatelessWidget {
       builder: (context, state) {
         final topBarHeight = MediaQuery.of(context).padding.top + 62.0;
 
-        return Scaffold(
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) async {
+            if (didPop) return;
+            final leave = await _confirmLeave(context);
+            if (leave && context.mounted) context.pop();
+          },
+          child: Scaffold(
           backgroundColor: AppColors.backgroundDark,
           body: Stack(
             children: [
@@ -104,14 +127,15 @@ class _GameplayView extends StatelessWidget {
                     isDaily: isDaily,
                     onNext: () {
                       if (isDaily) {
-                        context.go('/level-map');
+                        context.pop(); // back to level-map
                       } else if (levelNumber < 500) {
-                        context.go('/gameplay?level=${levelNumber + 1}');
+                        context.pushReplacement(
+                            '/gameplay?level=${levelNumber + 1}');
                       } else {
-                        context.go('/level-map');
+                        context.pop();
                       }
                     },
-                    onHome: () => context.go('/level-map'),
+                    onHome: () => context.pop(),
                   ),
                 ),
 
@@ -120,18 +144,24 @@ class _GameplayView extends StatelessWidget {
                 top: 0, left: 0, right: 0,
                 child: GameTopBar(
                   levelId: state.level.id,
-                  complexity: state.level.complexity,
                   mistakes: state.mistakes,
                   maxMistakes: GameplayState.maxMistakes,
-                  onClose: () => context.go('/level-map'),
-                  onHint: () {
+                  onClose: () async {
+                    final leave = await _confirmLeave(context);
+                    if (leave && context.mounted) context.pop();
+                  },
+                  onHint: () async {
                     final cubit = context.read<GameplayCubit>();
+                    if (SettingsService.instance.hapticsEnabled) {
+                      HapticFeedback.selectionClick();
+                    }
                     if (state.pieces.any((p) => p.isHinted)) {
                       cubit.clearHint();
                       return;
                     }
-                    final found = cubit.requestHint();
-                    if (!found) {
+                    final result = await cubit.requestHint();
+                    if (!context.mounted) return;
+                    if (result == HintResult.noMovesAvailable) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('No moves available right now!'),
@@ -139,8 +169,20 @@ class _GameplayView extends StatelessWidget {
                           backgroundColor: Color(0xFF7B3F00),
                         ),
                       );
+                    } else if (result == HintResult.exhausted) {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => _HintAdDialog(
+                          onWatchAd: () {
+                            context.read<GameplayCubit>().watchHintAd();
+                            Navigator.of(ctx).pop();
+                          },
+                          onCancel: () => Navigator.of(ctx).pop(),
+                        ),
+                      );
                     }
                   },
+                  hintsRemaining: state.hintsRemaining,
                   isHintActive: state.pieces.any((p) => p.isHinted),
                 ),
               ),
@@ -223,8 +265,189 @@ class _GameplayView extends StatelessWidget {
                 ),
             ],
           ),
-        );
+        ),  // Scaffold
+        );  // PopScope
       },
+    );
+  }
+}
+
+// ── Shared leave-game confirmation ────────────────────────────────────────────
+
+Future<bool> _confirmLeave(BuildContext context) async {
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => _ConfirmDialog(
+      title: 'Leave Level?',
+      message: 'Your progress in this level will be lost.',
+      confirmLabel: 'Leave',
+      cancelLabel: 'Keep Playing',
+    ),
+  );
+  return result ?? false;
+}
+
+class _ConfirmDialog extends StatelessWidget {
+  const _ConfirmDialog({
+    required this.title,
+    required this.message,
+    required this.confirmLabel,
+    required this.cancelLabel,
+  });
+  final String title;
+  final String message;
+  final String confirmLabel;
+  final String cancelLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: AppColors.boardSurface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.exit_to_app_rounded,
+                color: AppColors.accentGold, size: 36),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: const TextStyle(
+                fontFamily: 'Baloo2',
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textWarm,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Nunito',
+                fontSize: 13,
+                color: AppColors.textWarm.withValues(alpha: 0.60),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textWarm,
+                      side: BorderSide(
+                          color: AppColors.textWarm.withValues(alpha: 0.25)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(cancelLabel,
+                        style: const TextStyle(
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFB03030),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(confirmLabel,
+                        style: const TextStyle(
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Hint exhausted dialog ─────────────────────────────────────────────────────
+
+class _HintAdDialog extends StatelessWidget {
+  const _HintAdDialog({required this.onWatchAd, required this.onCancel});
+  final VoidCallback onWatchAd;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: AppColors.boardSurface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.lightbulb_outline_rounded,
+                color: AppColors.accentGold, size: 40),
+            const SizedBox(height: 12),
+            const Text(
+              'No Hints Left Today',
+              style: TextStyle(
+                fontFamily: 'Baloo2',
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textWarm,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'You\'ve used all 3 free hints for today.\nWatch a short ad to get 3 more.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Nunito',
+                fontSize: 13,
+                color: AppColors.textWarm.withValues(alpha: 0.65),
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: onWatchAd,
+                icon: const Icon(Icons.play_circle_outline_rounded, size: 18),
+                label: const Text('Watch Ad (+3 Hints)',
+                    style: TextStyle(fontFamily: 'Nunito',
+                        fontWeight: FontWeight.w700)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accentGold,
+                  foregroundColor: AppColors.backgroundDark,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: onCancel,
+              child: Text('Maybe Later',
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    color: AppColors.textWarm.withValues(alpha: 0.45),
+                  )),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

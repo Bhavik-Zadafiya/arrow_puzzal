@@ -1,5 +1,5 @@
 name: arrow_pussal
-description: "Arrow Pussal — a calm puzzle escape."
+description: "ArrowX — a calm puzzle escape by Skyzen Infotech."
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -29,6 +29,9 @@ dependencies:
   flutter_animate: ^4.5.2
 
   # google_mobile_ads — add back when App ID is ready (crashes on start without one)
+
+  # Network
+  connectivity_plus: ^6.1.4
 
   # Local persistence
   hive: ^2.2.3

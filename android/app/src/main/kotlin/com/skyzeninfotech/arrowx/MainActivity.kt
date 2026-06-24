@@ -1,4 +1,4 @@
-package com.arrowpussal.arrow_pussal
+package com.skyzeninfotech.arrowx
 
 import io.flutter.embedding.android.FlutterActivity
 

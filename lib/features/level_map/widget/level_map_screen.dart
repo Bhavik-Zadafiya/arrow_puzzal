@@ -39,7 +39,14 @@ class _LevelMapView extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<LevelMapCubit, LevelMapState>(
       builder: (context, state) {
-        return Scaffold(
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) async {
+            if (didPop) return;
+            final exit = await _confirmExit(context);
+            if (exit) SystemNavigator.pop();
+          },
+          child: Scaffold(
           backgroundColor: AppColors.backgroundDark,
           extendBody: true,
           extendBodyBehindAppBar: true,
@@ -57,7 +64,7 @@ class _LevelMapView extends StatelessWidget {
                   activeIndex: state.activeTab,
                   onTap: (index) {
                     if (index == 2) {
-                      context.go('/settings');
+                      context.push('/settings');
                     } else {
                       context.read<LevelMapCubit>().setActiveTab(index);
                     }
@@ -110,7 +117,8 @@ class _LevelMapView extends StatelessWidget {
                 ),
             ],
           ),
-        );
+        ),  // Scaffold
+        );  // PopScope
       },
     );
   }
@@ -378,7 +386,7 @@ class _MapTabState extends State<_MapTab> {
                     level: level,
                     onTap: level.status == LevelStatus.locked
                         ? null
-                        : () => context.go('/gameplay?level=${level.id}'),
+                        : () => context.push('/gameplay?level=${level.id}'),
                   )
                       .animate(delay: (i * 35).ms)
                       .fadeIn(duration: 380.ms, curve: Curves.easeOut)
@@ -527,6 +535,90 @@ class _PulsingSparkle extends StatelessWidget {
           curve: Curves.easeInOut,
         );
   }
+}
+
+// ── Exit-app confirmation ─────────────────────────────────────────────────────
+
+Future<bool> _confirmExit(BuildContext context) async {
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => Dialog(
+      backgroundColor: const Color(0xFF18322A), // boardSurface
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.power_settings_new_rounded,
+                color: Color(0xFFC9A24B), size: 36),
+            const SizedBox(height: 12),
+            const Text(
+              'Exit Game?',
+              style: TextStyle(
+                fontFamily: 'Baloo2',
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFFEDE4D3),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Are you sure you want to quit?',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Nunito',
+                fontSize: 13,
+                color: const Color(0xFFEDE4D3).withValues(alpha: 0.60),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFEDE4D3),
+                      side: BorderSide(
+                          color: const Color(0xFFEDE4D3).withValues(alpha: 0.25)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Stay',
+                        style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFB03030),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Exit',
+                        style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+  return result ?? false;
 }
 
 

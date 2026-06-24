@@ -73,7 +73,7 @@ class LevelMapState {
       levels: levels,
       lifelineCount: svc.lifelineCount.clamp(0, 10),
       lifelineMax: 10,
-      regenSecondsRemaining: 840,
+      regenSecondsRemaining: ProgressService.regenIntervalSeconds,
     );
   }
 }
