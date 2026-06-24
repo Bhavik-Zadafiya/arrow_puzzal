@@ -116,7 +116,12 @@ class _DailyTabState extends State<DailyTab> {
                 )
               : _PlayCard(
                   shapeEmoji: svc.todayShapeEmoji,
-                  onPlay: () => context.push('/gameplay?daily=1'),
+                  onPlay: () async {
+                    await context.push('/gameplay?daily=1');
+                    if (context.mounted) {
+                      context.read<LevelMapCubit>().reload();
+                    }
+                  },
                 ),
 
           const SizedBox(height: 20),

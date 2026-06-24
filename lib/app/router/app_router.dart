@@ -7,6 +7,7 @@ import '../../features/level_map/widget/level_map_screen.dart';
 import '../../features/settings/widget/settings_screen.dart';
 import '../../features/settings/widget/privacy_policy_screen.dart';
 import '../../features/splash/widget/splash_screen.dart';
+import '../../features/tutorial/widget/tutorial_screen.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
@@ -15,6 +16,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/level-map',
       builder: (context, state) => const LevelMapScreen(),
+    ),
+    GoRoute(
+      path: '/tutorial',
+      builder: (context, state) => const TutorialScreen(),
     ),
     GoRoute(
       path: '/settings',

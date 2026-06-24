@@ -14,6 +14,8 @@ class GamePiece {
     this.hasExited = false,
     this.shakeCount = 0,
     this.isHinted = false,
+    this.bumperCount = 0,
+    this.bumperDirection,
   });
 
   final String id;
@@ -23,6 +25,10 @@ class GamePiece {
   final bool hasExited;
   final int shakeCount;
   final bool isHinted;
+  /// Incremented each time this piece is hit by another lunging piece.
+  final int bumperCount;
+  /// Direction the hit came from (same as the lunging piece's direction).
+  final Direction? bumperDirection;
 
   bool get isActive => !isExiting && !hasExited;
 
@@ -31,6 +37,8 @@ class GamePiece {
     bool? hasExited,
     int? shakeCount,
     bool? isHinted,
+    int? bumperCount,
+    Direction? bumperDirection,
   }) =>
       GamePiece(
         id: id,
@@ -40,6 +48,8 @@ class GamePiece {
         hasExited: hasExited ?? this.hasExited,
         shakeCount: shakeCount ?? this.shakeCount,
         isHinted: isHinted ?? this.isHinted,
+        bumperCount: bumperCount ?? this.bumperCount,
+        bumperDirection: bumperDirection ?? this.bumperDirection,
       );
 }
 

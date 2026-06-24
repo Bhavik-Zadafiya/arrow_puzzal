@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../core/services/settings_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -21,7 +22,11 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _scheduleNavigation() async {
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
-    context.go('/level-map');
+    if (!SettingsService.instance.tutorialSeen) {
+      context.go('/tutorial');
+    } else {
+      context.go('/level-map');
+    }
   }
 
   @override

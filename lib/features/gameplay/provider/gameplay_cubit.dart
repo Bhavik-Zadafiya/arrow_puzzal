@@ -25,11 +25,18 @@ class GameplayCubit extends Cubit<GameplayState> {
       ));
     } else {
       final newMistakes = state.mistakes + 1;
+      final blocker = _findBlocker(piece);
       emit(state.copyWith(
-        pieces: cleared
-            .map((p) =>
-                p.id == pieceId ? p.copyWith(shakeCount: p.shakeCount + 1) : p)
-            .toList(),
+        pieces: cleared.map((p) {
+          if (p.id == pieceId) return p.copyWith(shakeCount: p.shakeCount + 1);
+          if (blocker != null && p.id == blocker.id) {
+            return p.copyWith(
+              bumperCount: p.bumperCount + 1,
+              bumperDirection: piece.direction,
+            );
+          }
+          return p;
+        }).toList(),
         mistakes: newMistakes,
         phase: newMistakes >= GameplayState.maxMistakes
             ? GamePhase.failed
@@ -90,6 +97,35 @@ class GameplayCubit extends Cubit<GameplayState> {
     ));
   }
 
+  /// Returns the first piece blocking [piece]'s exit path, or null.
+  GamePiece? _findBlocker(GamePiece piece) {
+    if (piece.cells.isEmpty) return null;
+    final head = piece.cells.last;
+    switch (piece.direction) {
+      case Direction.right:
+        for (int c = head.col + 1; c < state.level.cols; c++) {
+          final other = state.pieceAt(head.row, c);
+          if (other != null && other.id != piece.id) return other;
+        }
+      case Direction.left:
+        for (int c = head.col - 1; c >= 0; c--) {
+          final other = state.pieceAt(head.row, c);
+          if (other != null && other.id != piece.id) return other;
+        }
+      case Direction.up:
+        for (int r = head.row - 1; r >= 0; r--) {
+          final other = state.pieceAt(r, head.col);
+          if (other != null && other.id != piece.id) return other;
+        }
+      case Direction.down:
+        for (int r = head.row + 1; r < state.level.rows; r++) {
+          final other = state.pieceAt(r, head.col);
+          if (other != null && other.id != piece.id) return other;
+        }
+    }
+    return null;
+  }
+
   List<GamePiece> _clearAllHints(List<GamePiece> pieces) =>
       pieces.map((p) => p.isHinted ? p.copyWith(isHinted: false) : p).toList();
 
@@ -115,6 +151,11 @@ class GameplayCubit extends Cubit<GameplayState> {
       lifelineCount: ProgressService.instance.lifelineCount,
     ));
   }
+
+  // ── Color mode ────────────────────────────────────────────────────────────
+
+  /// Re-emit current state so the grid rebuilds with the new color mode.
+  void refreshColors() => emit(state.copyWith());
 
   // ── Dev / auto-solve ──────────────────────────────────────────────────────
 

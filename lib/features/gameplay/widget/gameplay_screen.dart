@@ -10,6 +10,7 @@ import '../../../core/services/settings_service.dart';
 import '../data/level_definition.dart';
 import '../provider/gameplay_cubit.dart';
 import '../provider/gameplay_state.dart';
+import 'color_mode_sheet.dart';
 import 'continue_dialog.dart';
 import 'dev_test_dialog.dart';
 import 'game_grid.dart';
@@ -114,7 +115,15 @@ class _GameplayView extends StatelessWidget {
               Column(
                 children: [
                   SizedBox(height: topBarHeight),
-                  const Expanded(child: GameGrid()),
+                  Expanded(
+                    child: InteractiveViewer(
+                      minScale: 1.0,
+                      maxScale: 4.0,
+                      // Allow panning only when zoomed in (clip prevents overflow)
+                      clipBehavior: Clip.none,
+                      child: const GameGrid(),
+                    ),
+                  ),
                   const SizedBox(height: 32),
                 ],
               ),
@@ -150,42 +159,68 @@ class _GameplayView extends StatelessWidget {
                     final leave = await _confirmLeave(context);
                     if (leave && context.mounted) context.pop();
                   },
-                  onHint: () async {
-                    final cubit = context.read<GameplayCubit>();
-                    if (SettingsService.instance.hapticsEnabled) {
-                      HapticFeedback.selectionClick();
-                    }
-                    if (state.pieces.any((p) => p.isHinted)) {
-                      cubit.clearHint();
-                      return;
-                    }
-                    final result = await cubit.requestHint();
-                    if (!context.mounted) return;
-                    if (result == HintResult.noMovesAvailable) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('No moves available right now!'),
-                          duration: Duration(seconds: 2),
-                          backgroundColor: Color(0xFF7B3F00),
-                        ),
-                      );
-                    } else if (result == HintResult.exhausted) {
-                      showDialog(
-                        context: context,
-                        builder: (ctx) => _HintAdDialog(
-                          onWatchAd: () {
-                            context.read<GameplayCubit>().watchHintAd();
-                            Navigator.of(ctx).pop();
-                          },
-                          onCancel: () => Navigator.of(ctx).pop(),
-                        ),
-                      );
-                    }
-                  },
-                  hintsRemaining: state.hintsRemaining,
-                  isHintActive: state.pieces.any((p) => p.isHinted),
+                  onColorMode: () => showModalBottomSheet(
+                    context: context,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => ColorModeSheet(
+                      current: SettingsService.instance.pieceColorMode,
+                      onSelect: (mode) async {
+                        await SettingsService.instance.setPieceColorMode(mode);
+                        // Force grid rebuild by triggering a state update
+                        if (context.mounted) {
+                          context.read<GameplayCubit>().refreshColors();
+                        }
+                      },
+                    ),
+                  ),
                 ),
               ),
+
+              // ── Floating hint button (bottom center) ─────────────────────
+              if (state.phase == GamePhase.playing)
+                Positioned(
+                  bottom: 32,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: _HintFab(
+                      hintsRemaining: state.hintsRemaining,
+                      isActive: state.pieces.any((p) => p.isHinted),
+                      onTap: () async {
+                        final cubit = context.read<GameplayCubit>();
+                        if (SettingsService.instance.hapticsEnabled) {
+                          HapticFeedback.selectionClick();
+                        }
+                        if (state.pieces.any((p) => p.isHinted)) {
+                          cubit.clearHint();
+                          return;
+                        }
+                        final result = await cubit.requestHint();
+                        if (!context.mounted) return;
+                        if (result == HintResult.noMovesAvailable) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('No moves available right now!'),
+                              duration: Duration(seconds: 2),
+                              backgroundColor: Color(0xFF7B3F00),
+                            ),
+                          );
+                        } else if (result == HintResult.exhausted) {
+                          showDialog(
+                            context: context,
+                            builder: (ctx) => _HintAdDialog(
+                              onWatchAd: () {
+                                context.read<GameplayCubit>().watchHintAd();
+                                Navigator.of(ctx).pop();
+                              },
+                              onCancel: () => Navigator.of(ctx).pop(),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                ),
 
               // ── Developer buttons (debug builds only) ────────────────────
               if (kDebugMode)
@@ -371,6 +406,131 @@ class _ConfirmDialog extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Floating hint FAB ─────────────────────────────────────────────────────────
+
+class _HintFab extends StatefulWidget {
+  const _HintFab({
+    required this.hintsRemaining,
+    required this.isActive,
+    required this.onTap,
+  });
+  final int hintsRemaining;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  @override
+  State<_HintFab> createState() => _HintFabState();
+}
+
+class _HintFabState extends State<_HintFab>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 480),
+    );
+    if (widget.isActive) _ctrl.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(_HintFab old) {
+    super.didUpdateWidget(old);
+    if (widget.isActive && !old.isActive) _ctrl.repeat(reverse: true);
+    if (!widget.isActive && old.isActive) { _ctrl.stop(); _ctrl.value = 0; }
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEmpty = widget.hintsRemaining <= 0;
+    final active  = widget.isActive;
+
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, child) => Transform.translate(
+        offset: Offset(0, -5 * _ctrl.value),
+        child: child,
+      ),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: active
+                    ? const Color(0xFFFFD700).withValues(alpha: 0.18)
+                    : AppColors.boardSurface,
+                border: Border.all(
+                  color: isEmpty
+                      ? AppColors.textWarm.withValues(alpha: 0.15)
+                      : active
+                          ? const Color(0xFFFFD700)
+                          : AppColors.accentGold.withValues(alpha: 0.50),
+                  width: active ? 2.0 : 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: (active
+                            ? const Color(0xFFFFD700)
+                            : AppColors.accentGold)
+                        .withValues(alpha: active ? 0.35 : 0.12),
+                    blurRadius: 14,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.lightbulb_outline_rounded,
+                color: isEmpty
+                    ? AppColors.textWarm.withValues(alpha: 0.30)
+                    : active
+                        ? const Color(0xFFFFD700)
+                        : AppColors.textWarm,
+                size: 24,
+              ),
+            ),
+            // Count badge
+            Positioned(
+              top: -4,
+              right: -4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isEmpty
+                      ? AppColors.textWarm.withValues(alpha: 0.20)
+                      : AppColors.accentGold,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '${widget.hintsRemaining}',
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: isEmpty
+                        ? AppColors.textWarm.withValues(alpha: 0.40)
+                        : AppColors.backgroundDark,
+                  ),
+                ),
+              ),
             ),
           ],
         ),

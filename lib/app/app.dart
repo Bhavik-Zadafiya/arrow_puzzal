@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/services/audio_service.dart';
 import '../core/services/connectivity_service.dart';
+import '../core/services/notification_service.dart';
 import '../core/widget/no_internet_screen.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
@@ -25,6 +26,8 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     _connectSub = ConnectivityService.instance.onChanged.listen((online) {
       if (mounted) setState(() => _isOnline = online);
     });
+    // Schedule first-open notifications.
+    NotificationService.instance.onAppOpen();
   }
 
   @override
@@ -43,6 +46,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         AudioService.instance.pause();
       case AppLifecycleState.resumed:
         AudioService.instance.resume();
+        NotificationService.instance.onAppOpen();
       case AppLifecycleState.hidden:
         break;
     }

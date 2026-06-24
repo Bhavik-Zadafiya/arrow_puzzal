@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/services/daily_service.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../core/services/progress_service.dart';
 import 'level_map_state.dart';
 
@@ -20,10 +21,17 @@ class LevelMapCubit extends Cubit<LevelMapState> {
   Future<void> _tick() async {
     final secsRemaining = await ProgressService.instance.processRegen();
     if (isClosed) return;
+    final count = ProgressService.instance.lifelineCount.clamp(0, 10);
     emit(state.copyWith(
-      lifelineCount: ProgressService.instance.lifelineCount.clamp(0, 10),
+      lifelineCount: count,
       regenSecondsRemaining: secsRemaining,
     ));
+    // Keep the "lives full" notification in sync with the real regen time.
+    if (count < ProgressService.maxLifelines && secsRemaining > 0) {
+      NotificationService.instance.scheduleLifesFull(secsRemaining);
+    } else if (count >= ProgressService.maxLifelines) {
+      NotificationService.instance.cancelLivesNotification();
+    }
   }
 
   void setActiveTab(int index) => emit(state.copyWith(activeTab: index));

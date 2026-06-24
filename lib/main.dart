@@ -1,19 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'app/app.dart';
 import 'core/services/audio_service.dart';
 import 'core/services/connectivity_service.dart';
+import 'core/services/notification_service.dart';
 import 'core/services/daily_service.dart';
 import 'core/services/progress_service.dart';
 import 'core/services/settings_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
 
   // Init persistence first so cubits and services can read synchronously.
   await ProgressService.instance.init();
   await DailyService.instance.init();
   await SettingsService.instance.init();
   await ConnectivityService.instance.init();
+  await NotificationService.instance.init();
 
   // Music starts as soon as the asset is decoded (fire-and-forget after init).
   AudioService.instance.init();

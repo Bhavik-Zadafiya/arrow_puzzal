@@ -18,24 +18,23 @@ class TopStatusBar extends StatelessWidget implements PreferredSizeWidget {
   final int lifelineMax;
   final int regenSecondsRemaining;
 
-  static const double _barHeight = 64;
+  static const double _barHeight = 62;
 
   @override
   Size get preferredSize => const Size.fromHeight(_barHeight);
 
   @override
   Widget build(BuildContext context) {
-    final topPad  = MediaQuery.of(context).padding.top;
-    final isFull  = lifelineCount >= lifelineMax;
+    final topPad = MediaQuery.of(context).padding.top;
+    final isFull = lifelineCount >= lifelineMax;
 
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           height: _barHeight + topPad,
-          padding: EdgeInsets.only(top: topPad, left: 12, right: 12),
+          padding: EdgeInsets.only(top: topPad, left: 16, right: 12),
           decoration: BoxDecoration(
-            // Frosted glass — same family as the floating bottom nav
             color: AppColors.backgroundDark.withValues(alpha: 0.72),
             border: Border(
               bottom: BorderSide(
@@ -47,25 +46,50 @@ class TopStatusBar extends StatelessWidget implements PreferredSizeWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // ── Left: lives pill ──────────────────────────────────────
-              _LivesPill(count: lifelineCount, max: lifelineMax),
-              const SizedBox(width: 6),
+              // ── Left: ArrowX brand name ───────────────────────────────
+              _AppTitle(),
 
-              // ── Regen timer (only when not full) ─────────────────────
-              if (!isFull)
+              const Spacer(),
+
+              // ── Right: regen timer + lives pill ───────────────────────
+              if (!isFull) ...[
                 _RegenBadge(secondsRemaining: regenSecondsRemaining)
                     .animate()
                     .fadeIn(duration: 400.ms),
-
-              // ── Centre: app name (flexible so it never overflows) ─────
-              Expanded(
-                child: Center(child: _AppTitle()),
-              ),
-
-              // ── Right: profile button only ────────────────────────────
-              _ProfileButton(),
+                const SizedBox(width: 8),
+              ],
+              _LivesPill(count: lifelineCount, max: lifelineMax),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// App title — left anchor
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AppTitle extends StatelessWidget {
+  const _AppTitle();
+
+  @override
+  Widget build(BuildContext context) {
+    return ShaderMask(
+      shaderCallback: (bounds) => const LinearGradient(
+        colors: [Color(0xFFD4B97A), AppColors.accentGold, Color(0xFFF0D080)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ).createShader(bounds),
+      child: const Text(
+        AppStrings.appName,
+        style: TextStyle(
+          fontFamily: 'Baloo2',
+          fontSize: 22,
+          fontWeight: FontWeight.w900,
+          color: Colors.white,
+          letterSpacing: 0.8,
         ),
       ),
     );
@@ -91,30 +115,31 @@ class _LivesPill extends StatelessWidget {
         color: AppColors.boardSurface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppColors.accentGold.withValues(alpha: 0.35),
+          color: AppColors.accentGold.withValues(alpha: 0.30),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.accentGold.withValues(alpha: 0.12),
+            color: AppColors.accentGold.withValues(alpha: 0.10),
             blurRadius: 8,
-            spreadRadius: 0,
           ),
         ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Pulsing heart icon
-          const Icon(Iconsax.heart, color: Color(0xFFE05555), size: 16)
+          const Icon(Iconsax.heart, color: Color(0xFFE05555), size: 15)
               .animate(onPlay: (c) => c.repeat(reverse: true))
-              .scaleXY(begin: 1.0, end: 1.18, duration: 900.ms, curve: Curves.easeInOut),
+              .scaleXY(
+                  begin: 1.0,
+                  end: 1.18,
+                  duration: 900.ms,
+                  curve: Curves.easeInOut),
           const SizedBox(width: 6),
           Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Count text
               RichText(
                 text: TextSpan(
                   children: [
@@ -122,7 +147,7 @@ class _LivesPill extends StatelessWidget {
                       text: '$count',
                       style: const TextStyle(
                         fontFamily: 'Baloo2',
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w800,
                         color: AppColors.textWarm,
                         height: 1,
@@ -132,9 +157,9 @@ class _LivesPill extends StatelessWidget {
                       text: '/$max',
                       style: TextStyle(
                         fontFamily: 'Nunito',
-                        fontSize: 11,
+                        fontSize: 10,
                         fontWeight: FontWeight.w500,
-                        color: AppColors.textWarm.withValues(alpha: 0.45),
+                        color: AppColors.textWarm.withValues(alpha: 0.40),
                         height: 1,
                       ),
                     ),
@@ -142,16 +167,16 @@ class _LivesPill extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 3),
-              // Mini progress bar
               SizedBox(
-                width: 36,
+                width: 32,
                 height: 3,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(2),
                   child: LinearProgressIndicator(
                     value: pct,
                     backgroundColor: AppColors.textWarm.withValues(alpha: 0.1),
-                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFE05555)),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                        Color(0xFFE05555)),
                     minHeight: 3,
                   ),
                 ),
@@ -188,7 +213,7 @@ class _RegenBadge extends StatelessWidget {
         color: AppColors.boardSurface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.textWarm.withValues(alpha: 0.12),
+          color: AppColors.textWarm.withValues(alpha: 0.10),
           width: 1,
         ),
       ),
@@ -196,13 +221,14 @@ class _RegenBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
-            width: 16,
-            height: 16,
+            width: 14,
+            height: 14,
             child: CircularProgressIndicator(
               value: progress,
               strokeWidth: 2,
               backgroundColor: AppColors.textWarm.withValues(alpha: 0.1),
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accentGold),
+              valueColor:
+                  const AlwaysStoppedAnimation<Color>(AppColors.accentGold),
             ),
           ),
           const SizedBox(width: 5),
@@ -212,79 +238,10 @@ class _RegenBadge extends StatelessWidget {
               fontFamily: 'Nunito',
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: AppColors.textWarm.withValues(alpha: 0.6),
+              color: AppColors.textWarm.withValues(alpha: 0.55),
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// App title — centre anchor
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _AppTitle extends StatelessWidget {
-  const _AppTitle();
-
-  @override
-  Widget build(BuildContext context) {
-    return ShaderMask(
-      shaderCallback: (bounds) => const LinearGradient(
-        colors: [Color(0xFFD4B97A), AppColors.accentGold, Color(0xFFF0D080)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ).createShader(bounds),
-      child: const Text(
-        AppStrings.appName,
-        style: TextStyle(
-          fontFamily: 'Baloo2',
-          fontSize: 20,
-          fontWeight: FontWeight.w800,
-          color: Colors.white, // masked by gradient shader
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-}
-
-// _CoinBadge removed — will be re-added once currency system is built
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Profile button
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ProfileButton extends StatelessWidget {
-  const _ProfileButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {},
-      child: Container(
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: AppColors.boardSurface,
-          border: Border.all(
-            color: AppColors.accentGold.withValues(alpha: 0.40),
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.accentGold.withValues(alpha: 0.15),
-              blurRadius: 8,
-            ),
-          ],
-        ),
-        child: const Icon(
-          Iconsax.profile_circle,
-          color: AppColors.textWarm,
-          size: 18,
-        ),
       ),
     );
   }

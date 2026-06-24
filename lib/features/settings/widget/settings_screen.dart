@@ -409,6 +409,14 @@ class _DifficultyRow extends StatelessWidget {
   final int value;
   final ValueChanged<int> onChanged;
 
+  static const int _unlockAtLevel = 50;
+
+  bool get _isLocked =>
+      ProgressService.instance.highestUnlocked < _unlockAtLevel + 1;
+
+  int get _levelsLeft =>
+      (_unlockAtLevel + 1 - ProgressService.instance.highestUnlocked).clamp(0, _unlockAtLevel);
+
   String get _label {
     if (value == 1)  return 'Easy';
     if (value <= 3)  return 'Normal';
@@ -421,6 +429,10 @@ class _DifficultyRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final locked = _isLocked;
+    final dimColor = AppColors.textWarm.withValues(alpha: locked ? 0.30 : 1.0);
+    final goldDim  = AppColors.accentGold.withValues(alpha: locked ? 0.25 : 1.0);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Column(
@@ -431,59 +443,138 @@ class _DifficultyRow extends StatelessWidget {
               Container(
                 width: 38, height: 38,
                 decoration: BoxDecoration(
-                  color: AppColors.accentGold.withValues(alpha: 0.12),
+                  color: goldDim.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Iconsax.activity, color: AppColors.accentGold, size: 20),
+                child: Icon(
+                  locked ? Iconsax.lock : Iconsax.activity,
+                  color: goldDim,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 14),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Puzzle Complexity',
-                      style: textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textWarm, fontWeight: FontWeight.w600)),
-                  Text('Affects grid size and piece count',
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text('Puzzle Complexity',
+                            style: textTheme.bodyMedium?.copyWith(
+                                color: dimColor,
+                                fontWeight: FontWeight.w600)),
+                        const Spacer(),
+                        if (locked)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.textWarm.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                  color: AppColors.textWarm.withValues(alpha: 0.15),
+                                  width: 1),
+                            ),
+                            child: Text(
+                              '${_levelsLeft} levels left',
+                              style: textTheme.bodySmall?.copyWith(
+                                  color: AppColors.textWarm.withValues(alpha: 0.45),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11),
+                            ),
+                          )
+                        else
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.accentGold.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                  color: AppColors.accentGold.withValues(alpha: 0.30),
+                                  width: 1),
+                            ),
+                            child: Text(
+                              '$value · $_label',
+                              style: textTheme.bodySmall?.copyWith(
+                                  color: AppColors.accentGold,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 11),
+                            ),
+                          ),
+                      ],
+                    ),
+                    Text(
+                      locked
+                          ? 'Unlocks after completing level $_unlockAtLevel'
+                          : 'Affects grid size and piece count',
                       style: textTheme.bodySmall?.copyWith(
-                          color: AppColors.textWarm.withValues(alpha: 0.45))),
-                ],
-              ),
-              const Spacer(),
-              Text(
-                '$value/10  $_label',
-                style: textTheme.bodySmall?.copyWith(
-                    color: AppColors.accentGold.withValues(alpha: 0.85),
-                    fontWeight: FontWeight.w600),
+                          color: AppColors.textWarm.withValues(alpha: 0.45)),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
           const SizedBox(height: 6),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: AppColors.accentGold,
-              inactiveTrackColor: AppColors.accentGold.withValues(alpha: 0.15),
-              thumbColor: AppColors.accentGold,
-              overlayColor: AppColors.accentGold.withValues(alpha: 0.15),
-              trackHeight: 3,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+          // Unlock progress bar (shown while locked)
+          if (locked) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: ProgressService.instance.highestUnlocked / (_unlockAtLevel + 1),
+                backgroundColor: AppColors.textWarm.withValues(alpha: 0.08),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                    AppColors.accentGold.withValues(alpha: 0.45)),
+                minHeight: 4,
+              ),
             ),
-            child: Slider(
-              value: value.toDouble(),
-              min: 1,
-              max: 10,
-              divisions: 9,
-              onChanged: (v) => onChanged(v.round()),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Level ${ProgressService.instance.highestUnlocked} / $_unlockAtLevel',
+                  style: textTheme.bodySmall?.copyWith(
+                      color: AppColors.textWarm.withValues(alpha: 0.30),
+                      fontSize: 10),
+                ),
+                Text(
+                  'Keep playing to unlock!',
+                  style: textTheme.bodySmall?.copyWith(
+                      color: AppColors.accentGold.withValues(alpha: 0.40),
+                      fontSize: 10),
+                ),
+              ],
             ),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Easy', style: textTheme.bodySmall?.copyWith(
-                  color: AppColors.textWarm.withValues(alpha: 0.3), fontSize: 10)),
-              Text('Intense', style: textTheme.bodySmall?.copyWith(
-                  color: AppColors.textWarm.withValues(alpha: 0.3), fontSize: 10)),
-            ],
-          ),
+          ] else ...[
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: AppColors.accentGold,
+                inactiveTrackColor: AppColors.accentGold.withValues(alpha: 0.15),
+                thumbColor: AppColors.accentGold,
+                overlayColor: AppColors.accentGold.withValues(alpha: 0.15),
+                trackHeight: 3,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+              ),
+              child: Slider(
+                value: value.toDouble(),
+                min: 1,
+                max: 10,
+                divisions: 9,
+                onChanged: (v) => onChanged(v.round()),
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Easy', style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.textWarm.withValues(alpha: 0.3), fontSize: 10)),
+                Text('Intense', style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.textWarm.withValues(alpha: 0.3), fontSize: 10)),
+              ],
+            ),
+          ],
         ],
       ),
     );

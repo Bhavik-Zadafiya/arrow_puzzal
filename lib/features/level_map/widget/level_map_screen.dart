@@ -386,7 +386,12 @@ class _MapTabState extends State<_MapTab> {
                     level: level,
                     onTap: level.status == LevelStatus.locked
                         ? null
-                        : () => context.push('/gameplay?level=${level.id}'),
+                        : () async {
+                            await context.push('/gameplay?level=${level.id}');
+                            if (context.mounted) {
+                              context.read<LevelMapCubit>().reload();
+                            }
+                          },
                   )
                       .animate(delay: (i * 35).ms)
                       .fadeIn(duration: 380.ms, curve: Curves.easeOut)

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -19,8 +20,40 @@ double _pixelsToEdge(GamePiece piece, int rows, int cols, double cellSize) {
   };
 }
 
-class GameGrid extends StatelessWidget {
+class GameGrid extends StatefulWidget {
   const GameGrid({super.key});
+
+  @override
+  State<GameGrid> createState() => _GameGridState();
+}
+
+class _GameGridState extends State<GameGrid> with SingleTickerProviderStateMixin {
+  late final AnimationController _rippleCtrl;
+  Offset? _ripplePos;
+  Color _rippleColor = AppColors.accentGold;
+
+  @override
+  void initState() {
+    super.initState();
+    _rippleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    );
+  }
+
+  @override
+  void dispose() {
+    _rippleCtrl.dispose();
+    super.dispose();
+  }
+
+  void _triggerRipple(Offset pos, Color color) {
+    setState(() {
+      _ripplePos = pos;
+      _rippleColor = color;
+    });
+    _rippleCtrl.forward(from: 0);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +83,16 @@ class GameGrid extends StatelessWidget {
                     if (SettingsService.instance.hapticsEnabled) {
                       HapticFeedback.selectionClick();
                     }
+                    // Determine the piece's color for the ripple tint
+                    final idx = state.pieces.indexOf(piece);
+                    final color = pieceColorFor(
+                      SettingsService.instance.pieceColorMode, idx, piece.direction);
+                    // Ripple at cell centre
+                    final center = Offset(
+                      (col + 0.5) * cellSize,
+                      (row + 0.5) * cellSize,
+                    );
+                    _triggerRipple(center, color);
                     context.read<GameplayCubit>().tapPiece(piece.id);
                   }
                 },
@@ -65,7 +108,12 @@ class GameGrid extends StatelessWidget {
                         ),
                       ),
                     ),
-                    ...state.pieces.where((p) => !p.hasExited).map((piece) {
+                    ...state.pieces.asMap().entries
+                        .where((e) => !e.value.hasExited)
+                        .map((entry) {
+                      final piece = entry.value;
+                      final colorMode = SettingsService.instance.pieceColorMode;
+                      final pieceColor = pieceColorFor(colorMode, entry.key, piece.direction);
                       return Positioned(
                         key: ValueKey(piece.id),
                         left: 0, top: 0,
@@ -85,10 +133,31 @@ class GameGrid extends StatelessWidget {
                             onTap: () {},
                             onExitComplete: () =>
                                 context.read<GameplayCubit>().pieceExited(piece.id),
+                            pieceColor: pieceColor,
                           ),
                         ),
                       );
                     }),
+
+                    // ── Tap ripple overlay ───────────────────────────────────
+                    if (_ripplePos != null)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: AnimatedBuilder(
+                            animation: _rippleCtrl,
+                            builder: (_, __) {
+                              return CustomPaint(
+                                painter: _RipplePainter(
+                                  center: _ripplePos!,
+                                  progress: _rippleCtrl.value,
+                                  maxRadius: cellSize * 0.72,
+                                  color: _rippleColor,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -98,6 +167,57 @@ class GameGrid extends StatelessWidget {
       },
     );
   }
+}
+
+// ── Ripple painter ────────────────────────────────────────────────────────────
+
+class _RipplePainter extends CustomPainter {
+  const _RipplePainter({
+    required this.center,
+    required this.progress,
+    required this.maxRadius,
+    required this.color,
+  });
+
+  final Offset center;
+  final double progress;
+  final double maxRadius;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Ease-out curve for natural feel
+    final t = Curves.easeOut.transform(progress);
+    final radius = maxRadius * t;
+    // Fade: full opacity at start, gone by end
+    final alpha  = (1.0 - t).clamp(0.0, 1.0);
+
+    // Outer expanding ring
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = color.withValues(alpha: alpha * 0.45)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(1.0, 2.5 * (1.0 - t)),
+    );
+
+    // Inner fill flash (only first 30 % of animation)
+    if (t < 0.30) {
+      final innerAlpha = (1.0 - t / 0.30).clamp(0.0, 1.0);
+      canvas.drawCircle(
+        center,
+        radius * 0.45,
+        Paint()
+          ..color = color.withValues(alpha: innerAlpha * 0.18)
+          ..style = PaintingStyle.fill,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RipplePainter old) =>
+      old.progress != progress || old.center != center || old.color != color;
 }
 
 // ── Grid painter ──────────────────────────────────────────────────────────────
@@ -152,8 +272,8 @@ class _GridPainter extends CustomPainter {
     final shape = shapeCells!;
     final cw = size.width  / cols;
     final ch = size.height / rows;
-    const gap = 1.2; // px gap between adjacent cells
-    const r   = 3.0; // cell corner radius
+    const gap = 1.2;
+    const r   = 3.0;
 
     final cellPaint = Paint()..color = AppColors.boardSurface;
     final dotPaint  = Paint()
@@ -163,7 +283,6 @@ class _GridPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
 
-    // Collect edge cells (cells in shape that have at least one neighbour NOT in shape)
     final edgeCells = <String>{};
 
     for (final key in shape) {
@@ -171,7 +290,6 @@ class _GridPainter extends CustomPainter {
       final row = int.parse(parts[0]);
       final col = int.parse(parts[1]);
 
-      // Draw filled cell
       final rect = RRect.fromRectAndRadius(
         Rect.fromLTWH(col * cw + gap, row * ch + gap,
             cw - gap * 2, ch - gap * 2),
@@ -179,11 +297,9 @@ class _GridPainter extends CustomPainter {
       );
       canvas.drawRRect(rect, cellPaint);
 
-      // Dot at centre
       canvas.drawCircle(
           Offset((col + 0.5) * cw, (row + 0.5) * ch), 1.4, dotPaint);
 
-      // Check if edge cell
       final neighbours = [
         '${row - 1},$col', '${row + 1},$col',
         '$row,${col - 1}', '$row,${col + 1}',
@@ -193,7 +309,6 @@ class _GridPainter extends CustomPainter {
       }
     }
 
-    // Draw gold border on exposed edges of edge cells
     for (final key in edgeCells) {
       final parts = key.split(',');
       final row = int.parse(parts[0]);

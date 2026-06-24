@@ -30,6 +30,10 @@ dependencies:
 
   # google_mobile_ads — add back when App ID is ready (crashes on start without one)
 
+  # Notifications
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.10.1
+
   # Network
   connectivity_plus: ^6.1.4
 

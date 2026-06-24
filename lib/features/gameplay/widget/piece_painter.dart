@@ -19,6 +19,7 @@ class PiecePainter extends CustomPainter {
     required this.cellSize,
     this.drainT = 0.0,
     this.pixelsToEdge = 0.0,
+    this.pieceColor = Colors.white,
   });
 
   final List<GridPos> cells;
@@ -28,19 +29,21 @@ class PiecePainter extends CustomPainter {
   final double cellSize;
   final double drainT;
   final double pixelsToEdge;
+  /// Base color of this piece (set by color mode). Error/hint override this.
+  final Color pieceColor;
 
   Color get _color {
     if (isError) return AppColors.pieceLeft;
     if (isHinted) return const Color(0xFFFFD700);
-    return Colors.white;
+    return pieceColor;
   }
 
-  // Arrowhead is always gold so it pops out even when bodies of adjacent
-  // pieces are touching. Error state keeps red for the whole piece.
   Color get _tipColor {
     if (isError) return AppColors.pieceLeft;
     if (isHinted) return const Color(0xFFFFD700);
-    return AppColors.accentGold;
+    // In classic/themed mode keep gold tip for contrast;
+    // in colorful mode use the piece color so it stays cohesive.
+    return pieceColor == Colors.white ? AppColors.accentGold : pieceColor;
   }
 
   @override
@@ -274,5 +277,6 @@ class PiecePainter extends CustomPainter {
       old.drainT != drainT ||
       old.pixelsToEdge != pixelsToEdge ||
       old.cellSize != cellSize ||
+      old.pieceColor != pieceColor ||
       old.cells.length != cells.length;
 }
